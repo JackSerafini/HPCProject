@@ -29,56 +29,64 @@
 #define _x_ 0
 #define _y_ 1
 
-
+typedef unsigned int uint;
 
 // ============================================================
 //
 // function prototypes
 
-int initialize ( int      ,
-		 char   **,
-		 int    *,
-		 int     *,
-		 int     *,
-		 int     *,
-		 int   **,
-		 double  *,
-		 double **,
-                 int     *,
-                 int     *
-		 );
+int initialize (
+    int,
+    char   **,
+    int     *,
+    int     *,
+    int     *,
+    int     *,
+    int    **,
+    double  *,
+    double **,
+    int     *,
+    int     *
+);
 
 int memory_release ( double *, int * );
 
 
-extern int inject_energy ( const  int,
-                           const int    ,
-			   const int   *,
-			   const double  ,
-			   const int    [2],
-                                 double * );
+extern int inject_energy ( 
+    const  int,
+    const int,
+    const int *,
+    const double,
+    const int [2],
+    double * 
+);
 
-extern int update_plane ( const int       ,
-			  const int    [2],
-			  const double   *,
-		                double   * );
+extern int update_plane ( 
+    const int,
+	const int [2],
+    const double *,
+	double * 
+);
 
-
-extern int get_total_energy( const int     [2],
-                             const double *,
-                             double * );
+extern int get_total_energy( 
+    const int [2],
+    const double *,
+    double * 
+);
 
 
 // ============================================================
 //
 // function definition for inline functions
 
-inline int inject_energy ( const int     periodic,
-                           const int     Nsources,
-			   const int    *Sources,
-			   const double  energy,
-			   const int     mysize[2],
-                           double *plane )
+inline int inject_energy ( 
+    const int periodic,
+    const int Nsources,
+    const int *Sources,
+    const double energy,
+	const int mysize[2],
+    double *plane
+)
 {
    #define IDX( i, j ) ( (j)*(mysize[_x_]+2) + (i) )
     for (int s = 0; s < Nsources; s++) {
@@ -107,10 +115,12 @@ inline int inject_energy ( const int     periodic,
 
 
 
-inline int update_plane ( const int     periodic, 
-                          const int     size[2],
-			  const double *old    ,
-                                double *new    )
+inline int update_plane ( 
+    const int periodic, 
+    const int size[2],
+    const double *old,
+    double *new
+)
 /*
  * calculate the new energy values
  * the old plane contains the current data, the new plane
@@ -216,15 +226,16 @@ inline int update_plane ( const int     periodic,
 
  
 
-inline int get_total_energy( const int     size[2],
-                             const double *plane,
-                                   double *energy )
+inline int get_total_energy ( 
+    const int size[2],
+    const double *plane,
+    double *energy 
+)
 /*
  * NOTE: this routine a good candiadate for openmp
  *       parallelization
  */
 {
-
     const int register xsize = size[_x_];
     
    #define IDX( i, j ) ( (j)*(xsize+2) + (i) )
