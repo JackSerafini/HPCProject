@@ -56,3 +56,4 @@ dkms.conf
 
 # Custom
 notes
+.DS_Store

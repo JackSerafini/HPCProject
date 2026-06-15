@@ -1,8 +1,7 @@
 /* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil ; -*- */
 /*
  * See COPYRIGHT in top-level directory.
- */
-
+*/
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -12,8 +11,6 @@
 #include <time.h>
 #include <float.h>
 #include <math.h>
-
-
 
 #define NORTH 0
 #define SOUTH 1
@@ -51,9 +48,8 @@ int initialize (
 
 int memory_release ( double *, int * );
 
-
 extern int inject_energy ( 
-    const  int,
+    const int,
     const int,
     const int *,
     const double,
@@ -68,12 +64,11 @@ extern int update_plane (
 	double * 
 );
 
-extern int get_total_energy( 
+extern int get_total_energy ( 
     const int [2],
     const double *,
     double * 
 );
-
 
 // ============================================================
 //
@@ -111,9 +106,6 @@ inline int inject_energy (
     
     return 0;
 }
-
-
-
 
 inline int update_plane ( 
     const int periodic, 
@@ -153,7 +145,6 @@ inline int update_plane (
                 // five-points stencil formula
                 //
 
-                
                 // simpler stencil with no explicit diffusivity
                 // always conserve the smoohed quantity
                 // alpha here mimics how much "easily" the heat
@@ -165,9 +156,7 @@ inline int update_plane (
                 double sum_j  = (old[IDX(i, j-1)] + old[IDX(i, j+1)]) / 4.0 * (1-alpha);
                 result += (sum_i + sum_j );
                 
-
                 /*
-
                   // implentation from the derivation of
                   // 3-points 2nd order derivatives
                   // however, that should depends on an adaptive
@@ -188,7 +177,7 @@ inline int update_plane (
                         double sum_j = alpha * (old[IDX(i, j-1)] + old[IDX(i, j+1)] - 2*sum);
                         result = sum + ( sum_i + sum_j);
                         double ratio = fabs((result-sum)/(sum!=0? sum : 1.0));
-                        done = ( (ratio < 2.0) && (result >= 0) );    // not too fast diffusion and
+                        done = ( (ratio < 2.0) && (result >= 0) );   // not too fast diffusion and
                                                                      // not so fast that the (i,j)
                                                                      // goes below zero energy
                         alpha /= 2;
@@ -197,7 +186,6 @@ inline int update_plane (
                 */
 
                 new[ IDX(i,j) ] = result;
-                
             }
 
     if ( periodic )
@@ -223,8 +211,6 @@ inline int update_plane (
 
    #undef IDX
 }
-
- 
 
 inline int get_total_energy ( 
     const int size[2],
@@ -260,4 +246,3 @@ inline int get_total_energy (
     *energy = (double)totenergy;
     return 0;
 }
-                            

@@ -1,12 +1,9 @@
 /*
-
-/*
  *
  *  mysizex   :   local x-extendion of your patch
  *  mysizey   :   local y-extension of your patch
  *
- */
-
+*/
 
 #include "../include/stencil_template_serial.h"
 
