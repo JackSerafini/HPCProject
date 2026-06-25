@@ -1,6 +1,6 @@
 /* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil ; -*- */
 /*
- * See COPYRIGHT in top-level directory.
+See COPYRIGHT in top-level directory.
 */
 
 #include <stdlib.h>
@@ -30,12 +30,13 @@
 
 typedef unsigned int uint;
 
-typedef uint vec2_t[2];
-typedef double *restrict buffers_t[4];
+typedef uint vec2_t[2]; // array of 2 unsigned ints -> used for anything 2D
+typedef double *restrict buffers_t[4]; // array of 4 pointers to double, one per direction (N/S/E/W) -> used for communication buffers
+// restrict is a compiler hint meaning "the compiler may assume this pointer doesn't alias/overlap other pointers"
 
 typedef struct {
-    double * restrict data;
-    vec2_t size;
+    double *restrict data; // the flattened 2D array of doubles holding the actual temperature/energy values for this process's local patch
+    vec2_t size; // its (x, y) dimensions (size[_x_], size[_y_])
 } plane_t;
 
 extern int inject_energy (
@@ -59,6 +60,8 @@ extern int get_total_energy(
     double *
 );
 
+// The following functions are declared here, but defined in the .c file
+
 int initialize (
     MPI_Comm *,
     int,
@@ -80,7 +83,8 @@ int initialize (
 );
 
 int memory_release (
-    plane_t * 
+    buffers_t *,
+    plane_t *
 );
 
 int output_energy_stat ( 
@@ -94,17 +98,18 @@ int output_energy_stat (
 inline int inject_energy (
     const int periodic,
     const int Nsources,
-    const vec2_t *Sources,
+    const vec2_t *Sources, // pointer to an array of vec2_t —> list of (x,y) coordinates of heat sources
     const double energy,
     plane_t *plane,
-    const vec2_t N
+    const vec2_t N // process grid dimensions (Nx, Ny)
 )
 {
-    const uint register sizex = plane->size[_x_]+2;
-    double * restrict data = plane->data;
+    const uint register sizex = plane->size[_x_]+2; // the patch is stored with a halo/ghost border of 1 extra cell on each side (for neighbor data)
+    // -> the actual allocated width is size_x + 2
+    double *restrict data = plane->data;
     
-   #define IDX( i, j ) ( (j)*sizex + (i) )
-    for (int s = 0; s < Nsources; s++)
+   #define IDX( i, j ) ( (j)*sizex + (i) ) // grid stored as a 1D array simulating 2D, defined locally
+    for (int s = 0; s < Nsources; s++) // for each heat source, add energy to that grid cell
     {
         int x = Sources[s][_x_];
         int y = Sources[s][_y_];
@@ -126,9 +131,9 @@ inline int inject_energy (
             }
         }                
     }
- #undef IDX
+   #undef IDX
     
-  return 0;
+    return 0;
 }
 
 inline int update_plane (
@@ -138,13 +143,14 @@ inline int update_plane (
     plane_t *newplane
 )
 {
+    // "full" size including the +2 halo border
     uint register fxsize = oldplane->size[_x_]+2;
     uint register fysize = oldplane->size[_y_]+2;
-    
+    // the actual interior size (no border) —> the loop bounds
     uint register xsize = oldplane->size[_x_];
     uint register ysize = oldplane->size[_y_];
     
-   #define IDX( i, j ) ( (j)*fxsize + (i) )
+   #define IDX( i, j ) ( (j)*fxsize + (i) ) // fxsize, not xsize, because the underlying array's row width is the full (haloed) width, even though we only loop over interior cells
     
     // HINT: you may attempt to
     //       (i)  manually unroll the loop
@@ -155,9 +161,11 @@ inline int update_plane (
     // HINT: in any case, this loop is a good candidate
     //       for openmp parallelization
 
-    double * restrict old = oldplane->data;
-    double * restrict new = newplane->data;
+    double *restrict old = oldplane->data;
+    double *restrict new = newplane->data;
     
+    // loop indices run from 1 to ysize/xsize inclusive, skipping index 0 and index size+1, which are the halo cells 
+    // (border, filled with neighbor data or treated as zero/"heat sink" if there's no neighbor)
     for (uint j = 1; j <= ysize; j++)
         for ( uint i = 1; i <= xsize; i++)
         {
@@ -173,7 +181,7 @@ inline int update_plane (
             //
             new[ IDX(i,j) ] =
                 old[ IDX(i,j) ] / 2.0 + ( old[IDX(i-1, j)] + old[IDX(i+1, j)] +
-                                            old[IDX(i, j-1)] + old[IDX(i, j+1)] ) /4.0 / 2.0;
+                                            old[IDX(i, j-1)] + old[IDX(i, j+1)] ) / 4.0 / 2.0;
             
         }
 
@@ -191,10 +199,9 @@ inline int update_plane (
             // check the serial version
         }
     }
-
- #undef IDX
+   #undef IDX
  
-  return 0;
+    return 0;
 }
 
 inline int get_total_energy(
@@ -202,18 +209,19 @@ inline int get_total_energy(
     double *energy
 )
 /*
- * NOTE: this routine a good candiadate for openmp
- *       parallelization
+NOTE: this routine a good candiadate for openmp parallelization
 */
 {
     const int register xsize = plane->size[_x_];
     const int register ysize = plane->size[_y_];
     const int register fsize = xsize+2;
 
-    double * restrict data = plane->data;
+    double *restrict data = plane->data;
     
    #define IDX( i, j ) ( (j)*fsize + (i) )
 
+   // compile-time conditional -> if compile with -DLONG_ACCURACY, it uses long double (extended precision) for the running sum
+   // otherwise plain double -> summing millions of small values can accumulate floating-point rounding error
    #if defined(LONG_ACCURACY)    
     long double totenergy = 0;
    #else
