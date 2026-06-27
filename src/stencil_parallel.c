@@ -28,7 +28,7 @@ int main(int argc, char **argv)
     
     int output_energy_stat_perstep;
     
-    /* initialize MPI envrionment */
+    // initialize MPI envrionment
     {
         int level_obtained;
         
@@ -47,7 +47,7 @@ int main(int argc, char **argv)
         MPI_Comm_dup (MPI_COMM_WORLD, &myCOMM_WORLD);
     }
     
-    /* argument checking and setting */
+    // argument checking and setting
     int ret = initialize(&myCOMM_WORLD, Rank, Ntasks, argc, argv, &S, &N, &periodic, &output_energy_stat_perstep,
                 neighbours, &Niterations,
                 &Nsources, &Nsources_local, &Sources_local, &energy_per_source,
@@ -435,7 +435,6 @@ uint simple_factorization( uint A, int *Nfactors, uint **factors )
  * rought factorization;
  * assumes that A is small, of the order of <~ 10^5 max,
  * since it represents the number of tasks
- #
 */
 {
     // first pass: count how many prime factors A has (with repetition — e.g., 12 = 2×2×3 has 3 factors)
@@ -451,7 +450,6 @@ uint simple_factorization( uint A, int *Nfactors, uint **factors )
             N++;
             _A_ /= f;
         }
-
         f++;
     }
 
