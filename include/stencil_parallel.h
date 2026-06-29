@@ -92,7 +92,8 @@ int output_energy_stat (
     plane_t *,
     double,
     int,
-    MPI_Comm *
+    MPI_Comm *,
+    vec2_t
 );
 
 inline int inject_energy (
@@ -108,30 +109,35 @@ inline int inject_energy (
     // -> the actual allocated width is size_x + 2
     double *restrict data = plane->data;
     
-   #define IDX( i, j ) ( (j)*sizex + (i) ) // grid stored as a 1D array simulating 2D, defined locally
+    #define IDX( i, j ) ( (j)*sizex + (i) ) // grid stored as a 1D array simulating 2D, defined locally
     for (int s = 0; s < Nsources; s++) // for each heat source, add energy to that grid cell
     {
         int x = Sources[s][_x_];
         int y = Sources[s][_y_];
         
         data[ IDX(x,y) ] += energy;
-        
+
+        // TODO: hoist loop-invariant periodic checks outside the source loop
         if ( periodic )
         {
             if ( (N[_x_] == 1)  )
             {
-                // propagate the boundaries if needed
-                // check the serial version
+                if ( x == 1 )
+                    data[IDX(plane->size[_x_] + 1, y)] += energy;
+                if ( x == plane->size[_x_] ) 
+                    data[IDX(0, y)] += energy;
             }
             
             if ( (N[_y_] == 1) )
             {
-                // propagate the boundaries if needed
-                // check the serial version
+                if ( y == 1 )
+                    data[IDX(x, plane->size[_y_] + 1)] += energy;
+                if ( y == plane->size[_y_] )
+                    data[IDX(x, 0)] += energy;
             }
         }                
     }
-   #undef IDX
+    #undef IDX
     
     return 0;
 }
@@ -150,7 +156,7 @@ inline int update_plane (
     uint register xsize = oldplane->size[_x_];
     uint register ysize = oldplane->size[_y_];
     
-   #define IDX( i, j ) ( (j)*fxsize + (i) ) // fxsize, not xsize, because the underlying array's row width is the full (haloed) width, even though we only loop over interior cells
+    #define IDX( i, j ) ( (j)*fxsize + (i) ) // fxsize, not xsize, because the underlying array's row width is the full (haloed) width, even though we only loop over interior cells
     
     // HINT: you may attempt to
     //       (i)  manually unroll the loop
@@ -191,15 +197,30 @@ inline int update_plane (
         {
             // propagate the boundaries as needed
             // check the serial version
+            // for (int j = 0; j <= ysize; j++)
+            // {
+            //     new[ IDX( 0, j) ] = new[ IDX(xsize, j) ];
+            //     new[ IDX( xsize+1, j) ] = new[ IDX(1, j) ];
+            // }
+            for ( int j = 1; j <= ysize; j++ )
+            {
+                new[ IDX(0, j) ] = new[ IDX(xsize, j) ];
+                new[ IDX(xsize+1, j) ] = new[ IDX(1, j) ];
+            }
         }
 
         if ( N[_y_] == 1 ) 
         {
             // propagate the boundaries as needed
             // check the serial version
+            for ( int i = 1; i <= xsize; i++ )
+            {
+                new[ i ] = new[ IDX(i, ysize) ];
+                new[ IDX(i, ysize + 1) ] = new[ IDX(i, 1) ];
+            }
         }
     }
-   #undef IDX
+    #undef IDX
  
     return 0;
 }
@@ -218,15 +239,15 @@ NOTE: this routine a good candiadate for openmp parallelization
 
     double *restrict data = plane->data;
     
-   #define IDX( i, j ) ( (j)*fsize + (i) )
+    #define IDX( i, j ) ( (j)*fsize + (i) )
 
-   // compile-time conditional -> if compile with -DLONG_ACCURACY, it uses long double (extended precision) for the running sum
-   // otherwise plain double -> summing millions of small values can accumulate floating-point rounding error
-   #if defined(LONG_ACCURACY)    
-    long double totenergy = 0;
-   #else
-    double totenergy = 0;    
-   #endif
+    // compile-time conditional -> if compile with -DLONG_ACCURACY, it uses long double (extended precision) for the running sum
+    // otherwise plain double -> summing millions of small values can accumulate floating-point rounding error
+    #if defined(LONG_ACCURACY)    
+        long double totenergy = 0;
+    #else
+        double totenergy = 0;    
+    #endif
 
     // HINT: you may attempt to
     //       (i)  manually unroll the loop
@@ -237,7 +258,7 @@ NOTE: this routine a good candiadate for openmp parallelization
         for ( int i = 1; i <= xsize; i++ )
             totenergy += data[ IDX(i, j) ];
 
-   #undef IDX
+    #undef IDX
 
     *energy = (double)totenergy;
     return 0;

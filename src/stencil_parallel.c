@@ -6,10 +6,8 @@ mysizey   :   local y-extension of your patch
 #include "../include/stencil_parallel.h"
 
 // ------------------------------------------------------------------
-// ------------------------------------------------------------------
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     MPI_Comm myCOMM_WORLD;
     int Rank, Ntasks; // this process's ID (0 to Ntasks-1); total number of MPI processes
     uint neighbours[4]; // ranks of this process's North/South/East/West neighbors
@@ -28,7 +26,7 @@ int main(int argc, char **argv)
     
     int output_energy_stat_perstep;
     
-    // initialize MPI envrionment
+    /* initialize MPI envrionment */
     {
         int level_obtained;
         
@@ -44,7 +42,7 @@ int main(int argc, char **argv)
         // this process's ID and the total count
         MPI_Comm_rank(MPI_COMM_WORLD, &Rank);
         MPI_Comm_size(MPI_COMM_WORLD, &Ntasks);
-        MPI_Comm_dup (MPI_COMM_WORLD, &myCOMM_WORLD);
+        MPI_Comm_dup (MPI_COMM_WORLD, &myCOMM_WORLD); // make a private copy of the communicator
     }
     
     // argument checking and setting
@@ -53,7 +51,7 @@ int main(int argc, char **argv)
                 &Nsources, &Nsources_local, &Sources_local, &energy_per_source,
                 &planes[0], &buffers[0]);
 
-    if ( ret )
+    if (ret)
     {
         printf("task %d is opting out with termination code %d\n", Rank, ret);
         
@@ -89,14 +87,14 @@ int main(int argc, char **argv)
         // [C] copy the haloes data
         // once received, copy/place the incoming halo data into your plane's border cells
 
-        /* --------------------------------------  */
+        /* -------------------------------------- */
 
         /* update grid points */
         update_plane(periodic, N, &planes[current], &planes[!current]);
 
         /* output if needed */
         if ( output_energy_stat_perstep ) // optionally prints diagnostics every step
-            output_energy_stat(iter, &planes[!current], (iter+1) * Nsources*energy_per_source, Rank, &myCOMM_WORLD);
+            output_energy_stat(iter, &planes[!current], (iter+1) * Nsources*energy_per_source, Rank, &myCOMM_WORLD, S);
         
         /* swap plane indexes for the new iteration */
         // swaps which buffer is "current" for the next iteration
@@ -106,7 +104,7 @@ int main(int argc, char **argv)
     t1 = MPI_Wtime() - t1;
 
     // final energy report
-    output_energy_stat(-1, &planes[!current], Niterations * Nsources*energy_per_source, Rank, &myCOMM_WORLD);
+    output_energy_stat(-1, &planes[!current], Niterations * Nsources*energy_per_source, Rank, &myCOMM_WORLD, S);
     
     memory_release(buffers, planes);
     
@@ -368,8 +366,7 @@ int initialize(
 
     /*
     * every MPI task determines the size sx x sy of its own domain
-    * REMIND: the computational domain will be embedded into a frame
-    *         that is (sx+2) x (sy+2)
+    * REMIND: the computational domain will be embedded into a frame (sx+2) x (sy+2)
     *         the outern frame will be used for halo communication or
     */
     
@@ -430,13 +427,7 @@ int initialize(
     return 0;  
 }
 
-uint simple_factorization( uint A, int *Nfactors, uint **factors )
-/*
- * rought factorization;
- * assumes that A is small, of the order of <~ 10^5 max,
- * since it represents the number of tasks
-*/
-{
+uint simple_factorization(uint A, int *Nfactors, uint **factors) {
     // first pass: count how many prime factors A has (with repetition — e.g., 12 = 2×2×3 has 3 factors)
     // for each candidate divisor f starting at 2, divides it out of _A_ repeatedly while possible, counting each division.
     int N = 0;
@@ -527,13 +518,7 @@ int initialize_sources(
     return 0;
 }
 
-int memory_allocate(
-    const int *neighbours,
-    const vec2_t N,
-    buffers_t *buffers_ptr,
-    plane_t *planes_ptr
-)
-{
+int memory_allocate(const int *neighbours, const vec2_t N, buffers_t *buffers_ptr, plane_t *planes_ptr) {
     /*
     here you allocate the memory buffers that you need to
     (i)  hold the results of your computation
@@ -556,31 +541,30 @@ int memory_allocate(
     (ii) --- communications
 
     you may need two buffers (one for sending and one for receiving)
-    for each one of your neighnours, that are at most 4:
-    north, south, east amd west. -> up to 4 pairs of SEND/RECV buffers, one pair per neighbor direction, each large enough to hold one edge's worth of data (mysizex or mysizey doubles)
+    for each one of your neighnours, that are at most 4: north, south, east amd west
+    -> up to 4 pairs of SEND/RECV buffers, one pair per neighbor direction, each large enough to hold one edge's worth of data (mysizex or mysizey doubles)
 
-    To them you need to communicate at most mysizex or mysizey
-    daouble data.
+    To them you need to communicate at most mysizex or mysizey double data.
 
     These buffers are indexed by the buffer_ptr pointer so that
-
     (*buffers_ptr)[SEND][ {NORTH,...,WEST} ] = .. some memory regions
     (*buffers_ptr)[RECV][ {NORTH,...,WEST} ] = .. some memory regions
     
-    --->> Of course you can change this layout as you prefer
     north/south buffers might not even be needed as separate allocations, since a row of the grid is already stored contiguously in memory (because of the row-major flattening)
     —> you could just point directly at the right offset in the existing array rather than copying. East/west columns, by contrast, are not contiguous (they're strided), so those genuinely need a packed buffer
     */
 
     if (planes_ptr == NULL )
-        // an invalid pointer has been passed
-        // manage the situation
-        ;
+    {
+        perror("Error: NULL pointer passed. Failed to access the plane.");
+        exit(1);
+    }
 
     if (buffers_ptr == NULL )
-        // an invalid pointer has been passed
-        // manage the situation
-        ;
+    {
+        perror("Error: NULL pointer passed. Failed to access the buffer.");
+        exit(1);
+    }
         
     // ··················································
     // allocate memory for data
@@ -590,45 +574,125 @@ int memory_allocate(
     // (so initial temperature is 0 everywhere, including halos, before any heat is injected)
     unsigned int frame_size = (planes_ptr[OLD].size[_x_]+2) * (planes_ptr[OLD].size[_y_]+2);
 
-    planes_ptr[OLD].data = (double*)malloc( frame_size * sizeof(double) );
-    if ( planes_ptr[OLD].data == NULL )
-        // manage the malloc fail
-        ;
-    memset ( planes_ptr[OLD].data, 0, frame_size * sizeof(double) );
+    int ret_old = posix_memalign((void**)&planes_ptr[OLD].data, 64, frame_size * sizeof(double));
+    if ( ret_old != 0 )
+    {
+        fprintf(stderr, "Error: posix_memalign failed for OLD plane: %s\n", strerror(ret_old));
+        exit(1);
+    }
 
-    planes_ptr[NEW].data = (double*)malloc( frame_size * sizeof(double) );
-    if ( planes_ptr[NEW].data == NULL )
-        // manage the malloc fail
-        ;
-    memset ( planes_ptr[NEW].data, 0, frame_size * sizeof(double) );
+    int ret_new = posix_memalign((void**)&planes_ptr[NEW].data, 64, frame_size * sizeof(double));
+    if ( ret_new != 0 )
+    {
+        fprintf(stderr, "Error: posix_memalign failed for NEW plane: %s\n", strerror(ret_old));
+        exit(1);
+    }
 
-    // the actual halo-communication buffer allocation is not implemented 
+    // NUMA-aware first-touch with tiled pattern matching update_plane_interior's
+	// collapse(2) tile distribution. Each thread touches the same tiles it will compute,
+	// causing Linux to allocate pages on that thread's local NUMA node.
+	// {
+    //     uint fxsize = planes_ptr[OLD].size[_x_] + 2;
+    //     uint ysize  = planes_ptr[OLD].size[_y_] + 2;
+
+    //     #define TILE 64
+    //     // TODO: #pragma omp parallel for collapse(2) schedule(static)
+    //     // it needs to match the work done in update_plane (add collapse(2) to both)
+    //     for (uint jj = 0; jj < ysize; jj += TILE)
+    //         for (uint ii = 0; ii < fxsize; ii += TILE)
+    //         {
+    //             uint j_end = (jj + TILE < ysize) ? jj + TILE : ysize;
+    //             uint i_end = (ii + TILE < fxsize) ? ii + TILE : fxsize;
+    //             for (uint j = jj; j < j_end; j++)
+    //                 for (uint i = ii; i < i_end; i++)
+    //                 {
+    //                     planes_ptr[OLD].data[j * fxsize + i] = 0.0;
+    //                     planes_ptr[NEW].data[j * fxsize + i] = 0.0;
+    //                 }
+    //         }
+    //     #undef TILE
+	// }
+    {
+        uint fxsize = planes_ptr[OLD].size[_x_] + 2;
+        uint fysize  = planes_ptr[OLD].size[_y_] + 2;
+        // #pragma omp parallel for
+        for (uint j = 0; j < fysize; j++)
+            for (uint i = 0; i < fxsize; i++)
+            {
+                planes_ptr[OLD].data[j * fxsize + i] = 0.0;
+                planes_ptr[NEW].data[j * fxsize + i] = 0.0;
+            }
+    }
+
     // ··················································
-    // buffers for north and south communication 
-    // are not really needed
+    // buffers for north and south communication are not really needed
+    // in fact, they are already contiguous, just the first and last line of every rank's plane
     //
-    // in fact, they are already contiguous, just the
-    // first and last line of every rank's plane
+    // you may just make some pointers pointing to the correct positions
     //
-    // you may just make some pointers pointing to the
-    // correct positions
-    //
-    // or, if you prefer, just go on and allocate buffers
-    // also for north and south communications
-
+    // or, if you prefer, just go on and allocate buffers also for north and south communications
     // ··················································
     // allocate buffers
     //
     // ··················································
+    // we allocate a packed SEND and RECV buffer for every direction
+    // that actually has a neighbour. NORTH/SOUTH buffers hold one
+    // row's worth of data (xsize doubles), EAST/WEST buffers hold one
+    // column's worth of data (ysize doubles), since with a 5-points
+    // stencil only the edge (not the corners) needs to be exchanged.
+    //
+    // NOTE: north/south rows are already contiguous in `data`, so in
+    // principle you could skip allocating/copying for those two
+    // directions and just point the buffer pointers at the right
+    // offset inside planes_ptr[...].data instead (see the comment
+    // above). We allocate real buffers for all four directions here
+    // for simplicity and uniformity: it means the halo-exchange code
+    // in main() can pack/send/receive/unpack every direction the same
+    // way, with no special-casing. You can switch north/south over to
+    // the zero-copy version later as an optimization.
+    // ··················································
+ 
+    const uint xsize = planes_ptr[OLD].size[_x_];
+    const uint ysize = planes_ptr[OLD].size[_y_];
+ 
+    uint buffer_size[4];
+    buffer_size[NORTH] = buffer_size[SOUTH] = xsize;
+    buffer_size[EAST] = buffer_size[WEST] = ysize;
+ 
+    for ( int b = 0; b < 2; b++ ) // SEND, RECV
+    {
+        for ( int d = 0; d < 4; d++ ) // NORTH, SOUTH, EAST, WEST
+        {
+            if ( neighbours[d] == MPI_PROC_NULL )
+                continue; // no neighbour there, nothing to allocate
+ 
+            buffers_ptr[b][d] = (double*)malloc( buffer_size[d] * sizeof(double) );
+            if ( buffers_ptr[b][d] == NULL )
+            {
+                // manage the malloc fail
+                perror("Failed to allocate the receiving buffer.");
+                exit(1);
+            }
+            memset( buffers_ptr[b][d], 0, buffer_size[d] * sizeof(double) );
+        }
+    }
 
     return 0;
 }
 
-int memory_release( // TODO: free buffer
-    buffers_t *buffers, // need to add a buffers parameter here and free those too
-    plane_t *planes
-)
-{
+int memory_release(buffers_t *buffers, plane_t *planes) {
+    if ( buffers != NULL )
+    {
+        for ( int b = 0; b < 2; b++ ) // SEND, RECV
+        {
+            for ( int d = 0; d < 4; d++ ) // NORTH, SOUTH, EAST, WEST
+            {
+                if ( buffers[b][d] != NULL )
+                    free (buffers[b][d]);
+            }
+        }
+    }
+
     if ( planes != NULL ) // free(NULL) is actually safe/a no-op in C anyway
     {
         if ( planes[OLD].data != NULL )
@@ -641,8 +705,7 @@ int memory_release( // TODO: free buffer
     return 0;
 }
 
-int output_energy_stat ( int step, plane_t *plane, double budget, int Me, MPI_Comm *Comm )
-{
+int output_energy_stat (int step, plane_t *plane, double budget, int Me, MPI_Comm *Comm, vec2_t S) {
     double system_energy = 0;
     double tot_system_energy = 0;
     // each process computes its own local total energy via get_total_energy
@@ -664,9 +727,8 @@ int output_energy_stat ( int step, plane_t *plane, double budget, int Me, MPI_Co
             "( in avg %g per grid point)\n",
             budget,
             tot_system_energy,
-            tot_system_energy / (plane->size[_x_]*plane->size[_y_]) ); // plane->size[_x_]*plane->size[_y_] is each process's local patch size
-            // since plane passed in is one specific process's plane, and only rank 0 prints, this divides the global summed energy by rank 0's local grid-point count, not the global count,
-            // unless Ntasks == 1 -> the correct denominator should probably be S[_x_]*S[_y_] (the global plate size), or this average is computed incorrectly whenever running with more than one process
+            // tot_system_energy / (plane->size[_x_]*plane->size[_y_]) );
+            tot_system_energy / (S[_x_]*S[_y_]) );
     }
     
     return 0;
