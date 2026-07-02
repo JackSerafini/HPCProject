@@ -48,7 +48,14 @@ extern int inject_energy (
     const vec2_t
 );
 
-extern int update_plane (
+extern int update_plane_inside (
+    const int,
+    const vec2_t,
+    const plane_t *,
+    plane_t *
+);
+
+extern int update_plane_border (
     const int,
     const vec2_t,
     const plane_t *,
@@ -142,7 +149,7 @@ inline int inject_energy (
     return 0;
 }
 
-inline int update_plane (
+inline int update_plane_inside (
     const int periodic, 
     const vec2_t N, // the grid of MPI tasks
     const plane_t *oldplane,
@@ -172,27 +179,62 @@ inline int update_plane (
 
     const double alpha = 0.5;
     const double alpha_neighbour = 0.125; // (1/4 * 1/2)
-    
-    // loop indices run from 1 to ysize/xsize inclusive, skipping index 0 and index size+1, which are the halo cells 
-    // (border, filled with neighbor data or treated as zero/"heat sink" if there's no neighbor)
-    for (uint j = 1; j <= ysize; j++)
-        for ( uint i = 1; i <= xsize; i++)
+
+    for (uint j = 2; j < ysize; j++)
+        for (uint i = 2; i < xsize; i++)
         {
-            // NOTE: (i-1,j), (i+1,j), (i,j-1) and (i,j+1) always exist even
-            //       if this patch is at some border without periodic conditions;
-            //       in that case it is assumed that the +-1 points are outside the
-            //       plate and always have a value of 0, i.e. they are an
-            //       "infinite sink" of heat
-            
-            // five-points stencil formula
-            //
-            // HINT : check the serial version for some optimization
-            //
-            new[ IDX(i,j) ] =
-                old[ IDX(i,j) ] * alpha + ( old[IDX(i-1, j)] + old[IDX(i+1, j)] +
-                                            old[IDX(i, j-1)] + old[IDX(i, j+1)] ) * alpha_neighbour;
-            
+            new[ IDX(i,j) ] = old[ IDX(i,j) ] * alpha + 
+                ( old[IDX(i-1, j)] + old[IDX(i+1, j)] + old[IDX(i, j-1)] + old[IDX(i, j+1)] ) * alpha_neighbour;
         }
+    #undef IDX
+ 
+    return 0;
+}
+
+inline int update_plane_border(
+    const int periodic, 
+    const vec2_t N, // the grid of MPI tasks
+    const plane_t *oldplane,
+    plane_t *newplane
+) {
+    uint register fxsize = oldplane->size[_x_]+2;
+    uint register fysize = oldplane->size[_y_]+2;
+    uint register xsize = oldplane->size[_x_];
+    uint register ysize = oldplane->size[_y_];
+    
+    #define IDX( i, j ) ( (j)*fxsize + (i) )
+
+    double *restrict old = oldplane->data;
+    double *restrict new = newplane->data;
+
+    const double alpha = 0.5;
+    const double alpha_neighbour = 0.125; // (1/4 * 1/2)
+
+    // Top row (j=1, all columns)
+    // #pragma omp parallel for schedule(static)
+    for (uint i = 1; i <= xsize; i++)
+        new[ IDX(i,1) ] = old[ IDX(i,1) ] * alpha + 
+            ( old[IDX(i-1, 1)] + old[IDX(i+1, 1)] + old[IDX(i, 0)] + old[IDX(i, 2)] ) * alpha_neighbour;
+
+    // Bottom row (j=ysize, all columns)
+    if (ysize > 1)
+        // #pragma omp parallel for schedule(static)
+        for (uint i = 1; i <= xsize; i++)
+            new[ IDX(i,ysize) ] = old[ IDX(i,ysize) ] * alpha + 
+                ( old[IDX(i-1, ysize)] + old[IDX(i+1, ysize)] + old[IDX(i, ysize-1)] + old[IDX(i, ysize+1)] ) * alpha_neighbour;
+
+    // Left column (i=1, skip corners already done by top/bottom rows)
+    // #pragma omp parallel for schedule(static)
+    for (uint j = 2; j <= ysize - 1; j++)
+        new[ IDX(1,j) ] = old[ IDX(1,j) ] * alpha + 
+            ( old[IDX(0, j)] + old[IDX(2, j)] + old[IDX(1, j-1)] + old[IDX(1, j+1)] ) * alpha_neighbour;
+
+    // Right column (i=xsize, skip corners already done by top/bottom rows)
+    if (xsize > 1)
+        // #pragma omp parallel for schedule(static)
+        for (uint j = 2; j <= ysize - 1; j++)
+            new[ IDX(xsize,j) ] = old[ IDX(xsize,j) ] * alpha + 
+                ( old[IDX(xsize-1, j)] + old[IDX(xsize+1, j)] + old[IDX(xsize, j-1)] + old[IDX(xsize, j+1)] ) * alpha_neighbour;
 
     if ( periodic )
     {
@@ -200,11 +242,6 @@ inline int update_plane (
         {
             // propagate the boundaries as needed
             // check the serial version
-            // for (int j = 0; j <= ysize; j++)
-            // {
-            //     new[ IDX( 0, j) ] = new[ IDX(xsize, j) ];
-            //     new[ IDX( xsize+1, j) ] = new[ IDX(1, j) ];
-            // }
             for ( int j = 1; j <= ysize; j++ )
             {
                 new[ IDX(0, j) ] = new[ IDX(xsize, j) ];
