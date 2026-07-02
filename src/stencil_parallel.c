@@ -22,7 +22,7 @@ int main(int argc, char **argv) {
     double energy_per_source;
 
     plane_t planes[2]; // the OLD/NEW double-buffer
-    buffers_t buffers[2]; // SEND/RECV halo-communication buffers (one set per direction, per OLD/NEW... actually per SEND/RECV)
+    buffers_t buffers[2]; // SEND/RECV halo-communication buffers (one set per direction, per SEND/RECV)
     
     int output_energy_stat_perstep;
     
@@ -44,7 +44,7 @@ int main(int argc, char **argv) {
         MPI_Comm_size(MPI_COMM_WORLD, &Ntasks);
         MPI_Comm_dup (MPI_COMM_WORLD, &myCOMM_WORLD); // make a private copy of the communicator
     }
-    
+
     // argument checking and setting
     int ret = initialize(&myCOMM_WORLD, Rank, Ntasks, argc, argv, &S, &N, &periodic, &output_energy_stat_perstep,
                 neighbours, &Niterations,
@@ -64,12 +64,20 @@ int main(int argc, char **argv) {
     
     for (int iter = 0; iter < Niterations; ++iter)
     {
-        // declared but not yet used (another unfinished part):
-        MPI_Request reqs[8]; // handle for up to 8 non-blocking MPI operations (e.g., 4 directions × send+receive)
+        MPI_Request reqs[8]; // handle for up to 8 non-blocking MPI operations (4 directions x send+receive)
         
         /* new energy from sources */
         // each iteration first injects fresh heat at the source points into the current plane
         inject_energy(periodic, Nsources_local, Sources_local, energy_per_source, &planes[current], N);
+
+        // local shorthands: full (haloed) row width, and interior extents
+        const uint fxsize = planes[current].size[_x_] + 2;
+        const uint xsize = planes[current].size[_x_];
+        const uint ysize = planes[current].size[_y_];
+ 
+        #define IDX(i, j) ( (j)*fxsize + (i) )
+ 
+        double *restrict data = planes[current].data;
 
         // before updating the grid, each process needs its neighbors' edge data copied into its own halo cells
         /* -------------------------------------- */
@@ -77,15 +85,114 @@ int main(int argc, char **argv) {
         // [A] fill the buffers, and/or make the buffers' pointers pointing to the correct position
         // Pack the data you need to send into a buffer, or just point directly at it if it's already contiguous
 
+        // NORTH/SOUTH: a row of the grid is already contiguous in memory (row-major layout), so there is nothing to copy.
+        // We just repoint the SEND buffer pointer at the first/last interior row of `data`.
+        // This is the "zero-copy" trick mentioned in memory_allocate()'s comments: buffers[SEND][NORTH/SOUTH]
+        // were malloc'd in memory_allocate, but we override the pointer here instead
+        // of memcpy-ing into the malloc'd memory, so the original allocation is simply
+        // left unused for these two directions. (Safe because we always free() the
+        // original pointer separately, kept in a local var below.)
+        buffers[SEND][NORTH] = &data[IDX(1, 1)]; // first interior row (j=1)
+        buffers[SEND][SOUTH] = &data[IDX(1, ysize)]; // last interior row  (j=ysize)
+ 
+        // EAST/WEST: a column is strided in memory (stride = fxsize doubles between
+        // consecutive elements), so MPI cannot send it directly as a contiguous
+        // buffer without either a derived datatype or manual packing. We pack
+        // manually into the pre-allocated buffers[SEND][EAST/WEST] (sized `ysize`
+        // in memory_allocate). This copy is O(ysize) and is the unavoidable price
+        // of row-major storage with column halos.
+        for (uint j = 1; j <= ysize; j++)
+        {
+            buffers[SEND][EAST][j-1] = data[IDX(xsize, j)]; // last interior column
+            buffers[SEND][WEST][j-1] = data[IDX(1, j)]; // first interior column
+        }
+ 
+        // RECV buffers: same zero-copy trick for north/south — point RECV[NORTH/SOUTH]
+        // directly at the halo rows (j=0 and j=ysize+1), so MPI writes the incoming
+        // data straight into its final place and step [C] needs no extra copy for
+        // these two directions.
+        // buffers[RECV][NORTH] = &data[IDX(1, 0)];          // north halo row
+        // buffers[RECV][SOUTH] = &data[IDX(1, ysize + 1)];  // south halo row
+        // buffers[RECV][EAST] / buffers[RECV][WEST] keep the malloc'd packed buffers
+        // from memory_allocate (sized `ysize`); we unpack those by hand in step [C]
+        // below, since the halo columns are strided and can't be filled in place.
+
         // [B] perfoem the halo communications
         //     (1) use Send / Recv
         //     (2) use Isend / Irecv
         //         --> can you overlap communication and compution in this way?
         // exchange this data over MPI either with blocking MPI_Send/MPI_Recv (simple but slow, can deadlock if not ordered carefully) 
         // or non-blocking MPI_Isend/MPI_Irecv (lets you overlap communication with other work, e.g., compute interior points while waiting for boundary data)
+
+        // We use the non-blocking pair MPI_Isend/MPI_Irecv + MPI_Waitall.
+        // Why non-blocking instead of MPI_Sendrecv/paired Send-Recv:
+        //   - Sendrecv (or carefully-ordered Send/Recv) is simpler and deadlock-free,
+        //     but it blocks the calling thread until each pair completes, so
+        //     communication and computation are strictly serialized.
+        //   - With Isend/Irecv, the call returns immediately after MPI has been told
+        //     about the transfer; the actual data movement happens in the background
+        //     (network/progress engine). This lets us start computing the interior
+        //     of the grid (the cells that do NOT depend on any neighbour's halo)
+        //     *while* the halo data is still in flight, and only block (MPI_Waitall)
+        //     right before we need the halo values, i.e. when updating the border
+        //     ring of the patch. NOTE: update_plane() as given does not yet split
+        //     interior vs. border work, so this code still waits before calling it;
+        //     splitting update_plane is a further optimization, but the Isend/Irecv
+        //     groundwork here is what makes that optimization possible later.
+        //   - MPI_PROC_NULL neighbours (no neighbour in that direction, e.g. on a
+        //     non-periodic boundary) make the corresponding Isend/Irecv an
+        //     automatic no-op with a request that completes immediately — so we can
+        //     issue all 8 calls unconditionally with no per-direction branching.
+ 
+        MPI_Irecv(buffers[RECV][NORTH], xsize, MPI_DOUBLE, neighbours[NORTH], NORTH, myCOMM_WORLD, &reqs[0]);
+        MPI_Irecv(buffers[RECV][SOUTH], xsize, MPI_DOUBLE, neighbours[SOUTH], SOUTH, myCOMM_WORLD, &reqs[1]);
+        MPI_Irecv(buffers[RECV][EAST], ysize, MPI_DOUBLE, neighbours[EAST], EAST, myCOMM_WORLD, &reqs[2]);
+        MPI_Irecv(buffers[RECV][WEST], ysize, MPI_DOUBLE, neighbours[WEST], WEST, myCOMM_WORLD, &reqs[3]);
+ 
+        MPI_Isend(buffers[SEND][NORTH], xsize, MPI_DOUBLE, neighbours[NORTH], SOUTH, myCOMM_WORLD, &reqs[4]);
+        MPI_Isend(buffers[SEND][SOUTH], xsize, MPI_DOUBLE, neighbours[SOUTH], NORTH, myCOMM_WORLD, &reqs[5]);
+        MPI_Isend(buffers[SEND][EAST], ysize, MPI_DOUBLE, neighbours[EAST], WEST, myCOMM_WORLD, &reqs[6]);
+        MPI_Isend(buffers[SEND][WEST], ysize, MPI_DOUBLE, neighbours[WEST], EAST, myCOMM_WORLD, &reqs[7]);
+ 
+        // Tag convention: each Isend uses the tag of the direction its receiver is
+        // looking for it under. E.g. my NORTH neighbour's "SOUTH" recv is filled by
+        // my "NORTH"-directed send arriving at them from their south side, so I tag
+        // it SOUTH; symmetrically I post my own MPI_Irecv[NORTH] expecting a message
+        // tagged NORTH from that same neighbour (sent by them as their SOUTH send).
+        // This NORTH<->SOUTH, EAST<->WEST tag pairing is what lets every process
+        // post matching sends/recvs with no special-casing, including when the
+        // "neighbour" is MPI_PROC_NULL (tag is then irrelevant, call is a no-op).
+ 
+        // Issuing recvs before sends is not required for correctness with Isend/Irecv
+        // (unlike blocking Send/Recv, there's no deadlock risk either way, since
+        // control returns immediately), but posting receives first is still good
+        // practice: it gives the MPI implementation buffer space ready to land
+        // incoming data as soon as it arrives, instead of needing internal
+        // unexpected-message buffering.
+ 
+        MPI_Waitall(8, reqs, MPI_STATUSES_IGNORE);
+        // We wait for completion of all 8 requests right here (no overlap with
+        // interior computation yet, see note above). MPI_STATUSES_IGNORE: we don't
+        // need the MPI_Status info (source rank, tag, error code) for any of these
+        // requests, since we already know exactly what we asked for.
         
         // [C] copy the haloes data
         // once received, copy/place the incoming halo data into your plane's border cells
+
+        // NORTH/SOUTH: already written directly into the halo rows by MPI_Irecv,
+        // thanks to pointing buffers[RECV][NORTH/SOUTH] at IDX(1,0) / IDX(1,ysize+1)
+        // above — nothing left to do here.
+ 
+        // EAST/WEST: the received data is sitting in the packed RECV buffers
+        // (contiguous, ysize doubles); we must scatter it into the strided halo
+        // column of `data` by hand, mirroring the packing loop in [A].
+        for (uint j = 1; j <= ysize; j++)
+        {
+            data[IDX(xsize + 1, j)] = buffers[RECV][EAST][j-1]; // east halo column
+            data[IDX(0, j)] = buffers[RECV][WEST][j-1]; // west halo column
+        }
+ 
+        #undef IDX
 
         /* -------------------------------------- */
 
@@ -166,7 +273,7 @@ int initialize(
     int verbose = 0;
     
     // ··································································
-    // set deffault values
+    // set default values
 
     (*S)[_x_] = 10000;
     (*S)[_y_] = 10000;
@@ -179,7 +286,8 @@ int initialize(
 
     if ( planes == NULL )
     {
-        // manage the situation
+        perror("Error: NULL pointer passed. Failed to access the plane.");
+		exit(1);
     }
 
     planes[OLD].size[0] = planes[OLD].size[1] = 0;
@@ -386,7 +494,6 @@ int initialize(
     planes[NEW].size[0] = mysize[0];
     planes[NEW].size[1] = mysize[1];
     
-
     if ( verbose > 0 )
     {
         if ( Me == 0 )
@@ -571,9 +678,10 @@ int memory_allocate(const int *neighbours, const vec2_t N, buffers_t *buffers_pt
     // we allocate the space needed for the plane plus a contour frame
     // that will contains data form neighbouring MPI tasks
     // frame_size = (x+2)*(y+2) — the local patch plus its 1-cell halo border on every side: both OLD and NEW buffers get allocated at this size and zeroed via memset 
-    // (so initial temperature is 0 everywhere, including halos, before any heat is injected)
+    // -> initial temperature is 0 everywhere, including halos, before any heat is injected
     unsigned int frame_size = (planes_ptr[OLD].size[_x_]+2) * (planes_ptr[OLD].size[_y_]+2);
 
+    // 64-byte aligned allocation for cache-line-aligned SIMD loads/stores
     int ret_old = posix_memalign((void**)&planes_ptr[OLD].data, 64, frame_size * sizeof(double));
     if ( ret_old != 0 )
     {
@@ -588,12 +696,11 @@ int memory_allocate(const int *neighbours, const vec2_t N, buffers_t *buffers_pt
         exit(1);
     }
 
-    // NUMA-aware first-touch with tiled pattern matching update_plane_interior's
-	// collapse(2) tile distribution. Each thread touches the same tiles it will compute,
-	// causing Linux to allocate pages on that thread's local NUMA node.
+    // NUMA-aware first-touch with tiled pattern matching update_plane_interior's collapse(2) tile distribution
+    // Each thread touches the same tiles it will compute, causing Linux to allocate pages on that thread's local NUMA node.
 	// {
     //     uint fxsize = planes_ptr[OLD].size[_x_] + 2;
-    //     uint ysize  = planes_ptr[OLD].size[_y_] + 2;
+    //     uint fysize  = planes_ptr[OLD].size[_y_] + 2;
 
     //     #define TILE 64
     //     // TODO: #pragma omp parallel for collapse(2) schedule(static)
@@ -666,14 +773,14 @@ int memory_allocate(const int *neighbours, const vec2_t N, buffers_t *buffers_pt
             if ( neighbours[d] == MPI_PROC_NULL )
                 continue; // no neighbour there, nothing to allocate
  
-            buffers_ptr[b][d] = (double*)malloc( buffer_size[d] * sizeof(double) );
+            buffers_ptr[b][d] = (double*)malloc(buffer_size[d] * sizeof(double));
             if ( buffers_ptr[b][d] == NULL )
             {
                 // manage the malloc fail
                 perror("Failed to allocate the receiving buffer.");
                 exit(1);
             }
-            memset( buffers_ptr[b][d], 0, buffer_size[d] * sizeof(double) );
+            memset(buffers_ptr[b][d], 0, buffer_size[d] * sizeof(double));
         }
     }
 

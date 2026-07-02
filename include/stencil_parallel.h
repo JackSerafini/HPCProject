@@ -169,6 +169,9 @@ inline int update_plane (
 
     double *restrict old = oldplane->data;
     double *restrict new = newplane->data;
+
+    const double alpha = 0.5;
+    const double alpha_neighbour = 0.125; // (1/4 * 1/2)
     
     // loop indices run from 1 to ysize/xsize inclusive, skipping index 0 and index size+1, which are the halo cells 
     // (border, filled with neighbor data or treated as zero/"heat sink" if there's no neighbor)
@@ -186,8 +189,8 @@ inline int update_plane (
             // HINT : check the serial version for some optimization
             //
             new[ IDX(i,j) ] =
-                old[ IDX(i,j) ] / 2.0 + ( old[IDX(i-1, j)] + old[IDX(i+1, j)] +
-                                            old[IDX(i, j-1)] + old[IDX(i, j+1)] ) / 4.0 / 2.0;
+                old[ IDX(i,j) ] * alpha + ( old[IDX(i-1, j)] + old[IDX(i+1, j)] +
+                                            old[IDX(i, j-1)] + old[IDX(i, j+1)] ) * alpha_neighbour;
             
         }
 
@@ -254,6 +257,7 @@ NOTE: this routine a good candiadate for openmp parallelization
     //       (ii) ask the compiler to do it
     // for instance
     // #pragma GCC unroll 4
+    // #pragma omp parallel for collapse(2) schedule(static) reduction(+:totenergy)
     for ( int j = 1; j <= ysize; j++ )
         for ( int i = 1; i <= xsize; i++ )
             totenergy += data[ IDX(i, j) ];
