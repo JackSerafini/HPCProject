@@ -158,7 +158,6 @@ inline int update_plane_inside (
 {
     // "full" size including the +2 halo border
     uint register fxsize = oldplane->size[_x_]+2;
-    uint register fysize = oldplane->size[_y_]+2;
     // the actual interior size (no border) —> the loop bounds
     uint register xsize = oldplane->size[_x_];
     uint register ysize = oldplane->size[_y_];
@@ -198,7 +197,6 @@ inline int update_plane_border(
     plane_t *newplane
 ) {
     uint register fxsize = oldplane->size[_x_]+2;
-    uint register fysize = oldplane->size[_y_]+2;
     uint register xsize = oldplane->size[_x_];
     uint register ysize = oldplane->size[_y_];
     
@@ -225,14 +223,14 @@ inline int update_plane_border(
 
     // Left column (i=1, skip corners already done by top/bottom rows)
     // #pragma omp parallel for schedule(static)
-    for (uint j = 2; j <= ysize - 1; j++)
+    for (uint j = 2; j < ysize; j++)
         new[ IDX(1,j) ] = old[ IDX(1,j) ] * alpha + 
             ( old[IDX(0, j)] + old[IDX(2, j)] + old[IDX(1, j-1)] + old[IDX(1, j+1)] ) * alpha_neighbour;
 
     // Right column (i=xsize, skip corners already done by top/bottom rows)
     if (xsize > 1)
         // #pragma omp parallel for schedule(static)
-        for (uint j = 2; j <= ysize - 1; j++)
+        for (uint j = 2; j < ysize; j++)
             new[ IDX(xsize,j) ] = old[ IDX(xsize,j) ] * alpha + 
                 ( old[IDX(xsize-1, j)] + old[IDX(xsize+1, j)] + old[IDX(xsize, j-1)] + old[IDX(xsize, j+1)] ) * alpha_neighbour;
 
