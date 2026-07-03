@@ -179,6 +179,7 @@ inline int update_plane_inside (
     const double alpha = 0.5;
     const double alpha_neighbour = 0.125; // (1/4 * 1/2)
 
+    #pragma omp parallel for collapse(2) schedule(static)
     for (uint j = 2; j < ysize; j++)
         for (uint i = 2; i < xsize; i++)
         {
@@ -209,27 +210,27 @@ inline int update_plane_border(
     const double alpha_neighbour = 0.125; // (1/4 * 1/2)
 
     // Top row (j=1, all columns)
-    // #pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static)
     for (uint i = 1; i <= xsize; i++)
         new[ IDX(i,1) ] = old[ IDX(i,1) ] * alpha + 
             ( old[IDX(i-1, 1)] + old[IDX(i+1, 1)] + old[IDX(i, 0)] + old[IDX(i, 2)] ) * alpha_neighbour;
 
     // Bottom row (j=ysize, all columns)
     if (ysize > 1)
-        // #pragma omp parallel for schedule(static)
+        #pragma omp parallel for schedule(static)
         for (uint i = 1; i <= xsize; i++)
             new[ IDX(i,ysize) ] = old[ IDX(i,ysize) ] * alpha + 
                 ( old[IDX(i-1, ysize)] + old[IDX(i+1, ysize)] + old[IDX(i, ysize-1)] + old[IDX(i, ysize+1)] ) * alpha_neighbour;
 
     // Left column (i=1, skip corners already done by top/bottom rows)
-    // #pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static)
     for (uint j = 2; j < ysize; j++)
         new[ IDX(1,j) ] = old[ IDX(1,j) ] * alpha + 
             ( old[IDX(0, j)] + old[IDX(2, j)] + old[IDX(1, j-1)] + old[IDX(1, j+1)] ) * alpha_neighbour;
 
     // Right column (i=xsize, skip corners already done by top/bottom rows)
     if (xsize > 1)
-        // #pragma omp parallel for schedule(static)
+        #pragma omp parallel for schedule(static)
         for (uint j = 2; j < ysize; j++)
             new[ IDX(xsize,j) ] = old[ IDX(xsize,j) ] * alpha + 
                 ( old[IDX(xsize-1, j)] + old[IDX(xsize+1, j)] + old[IDX(xsize, j-1)] + old[IDX(xsize, j+1)] ) * alpha_neighbour;
@@ -292,7 +293,7 @@ NOTE: this routine a good candiadate for openmp parallelization
     //       (ii) ask the compiler to do it
     // for instance
     // #pragma GCC unroll 4
-    // #pragma omp parallel for collapse(2) schedule(static) reduction(+:totenergy)
+    #pragma omp parallel for collapse(2) schedule(static) reduction(+:totenergy)
     for ( int j = 1; j <= ysize; j++ )
         for ( int i = 1; i <= xsize; i++ )
             totenergy += data[ IDX(i, j) ];
