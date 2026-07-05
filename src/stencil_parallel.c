@@ -60,8 +60,10 @@ int main(int argc, char **argv) {
     }
     
     int current = OLD;
-    // double t_computation = 0, t_communication = 0;
-    // double t_comp0, t_comp1, t_comm0, t_comp1; 
+    // accumulators for this rank's total time spent in compute vs. comm
+    // sections across the whole run; t0 is a scratch variable reused to
+    // bracket each region with MPI_Wtime()
+    double t_comp = 0.0, t_comm = 0.0, t0;
     double t1 = MPI_Wtime(); /* take wall-clock time */
     
     for (int iter = 0; iter < Niterations; ++iter)
@@ -69,8 +71,10 @@ int main(int argc, char **argv) {
         MPI_Request reqs[8]; // handle for up to 8 non-blocking MPI operations (4 directions x send+receive)
         
         /* new energy from sources */
+        t0 = MPI_Wtime();
         // each iteration first injects fresh heat at the source points into the current plane
         inject_energy(periodic, Nsources_local, Sources_local, energy_per_source, &planes[current], N);
+        t_comp += MPI_Wtime() - t0;
 
         // before updating the grid, each process needs its neighbors' edge data copied into its own halo cells
         /* -------------------------------------- */
@@ -98,11 +102,13 @@ int main(int argc, char **argv) {
         // EAST/WEST: a column is strided in memory, so MPI cannot send it directly as a contiguous buffer
         // -> manual packing into the pre-allocated buffers[SEND][EAST/WEST] (sized `ysize` in memory_allocate) 
         // -> copy is O(ysize) and is the unavoidable price of row-major storage with column halos
+        t0 = MPI_Wtime();
         for (uint j = 1; j <= ysize; j++)
         {
             buffers[SEND][EAST][j-1] = data[IDX(xsize, j)]; // last interior column
             buffers[SEND][WEST][j-1] = data[IDX(1, j)]; // first interior column
         }
+        t_comm += MPI_Wtime() - t0;
  
         // RECV buffers: same zero-copy trick for north/south —> point RECV[NORTH/SOUTH]
         // directly at the halo rows (j=0 and j=ysize+1), so MPI writes the incoming
@@ -124,6 +130,7 @@ int main(int argc, char **argv) {
         // non-periodic boundary) make the corresponding Isend/Irecv an
         // automatic no-op with a request that completes immediately —> issue all 8 calls unconditionally with no per-direction branching
  
+        t0 = MPI_Wtime();
         MPI_Irecv(buffers[RECV][NORTH], xsize, MPI_DOUBLE, neighbours[NORTH], NORTH, myCOMM_WORLD, &reqs[0]);
         MPI_Irecv(buffers[RECV][SOUTH], xsize, MPI_DOUBLE, neighbours[SOUTH], SOUTH, myCOMM_WORLD, &reqs[1]);
         MPI_Irecv(buffers[RECV][EAST], ysize, MPI_DOUBLE, neighbours[EAST], EAST, myCOMM_WORLD, &reqs[2]);
@@ -133,7 +140,8 @@ int main(int argc, char **argv) {
         MPI_Isend(buffers[SEND][SOUTH], xsize, MPI_DOUBLE, neighbours[SOUTH], NORTH, myCOMM_WORLD, &reqs[5]);
         MPI_Isend(buffers[SEND][EAST], ysize, MPI_DOUBLE, neighbours[EAST], WEST, myCOMM_WORLD, &reqs[6]);
         MPI_Isend(buffers[SEND][WEST], ysize, MPI_DOUBLE, neighbours[WEST], EAST, myCOMM_WORLD, &reqs[7]);
- 
+        t_comm += MPI_Wtime() - t0;
+
         // Tag convention: each Isend uses the tag of the direction its receiver is
         // looking for it under. E.g. my NORTH neighbour's "SOUTH" recv is filled by
         // my "NORTH"-directed send arriving at them from their south side, so I tag
@@ -143,9 +151,17 @@ int main(int argc, char **argv) {
         // post matching sends/recvs with no special-casing, including when the
         // "neighbour" is MPI_PROC_NULL (tag is then irrelevant, call is a no-op)
 
+        t0 = MPI_Wtime();
         update_plane_inside(periodic, N, &planes[current], &planes[!current]);
+        t_comp += MPI_Wtime() - t0;
  
+        // this is the *exposed* communication cost: whatever wasn't already
+        // hidden behind update_plane_inside above. If overlap is working well,
+        // this should be small (ideally close to zero once the interior work
+        // is large enough to fully hide the halo transfer time)
+        t0 = MPI_Wtime();
         MPI_Waitall(8, reqs, MPI_STATUSES_IGNORE);
+        t_comm += MPI_Wtime() - t0;
         // We wait for completion of all 8 requests right here
         // MPI_STATUSES_IGNORE: don't need the MPI_Status info (source rank, tag, error code) for any of these
         // requests, since we already know exactly what we asked for
@@ -162,19 +178,23 @@ int main(int argc, char **argv) {
         // }
 
         // EAST/WEST: the received data is sitting in the packed RECV buffers (contiguous, ysize doubles)
-        // we must scatter it into the strided halo column of `data` by hand, mirroring the packing loop in [A].
+        // we must scatter it into the strided halo column of `data` by hand, mirroring the packing loop in [A]
+        t0 = MPI_Wtime();
         for (uint j = 1; j <= ysize; j++)
         {
             data[IDX(xsize + 1, j)] = buffers[RECV][EAST][j-1]; // east halo column
             data[IDX(0, j)] = buffers[RECV][WEST][j-1]; // west halo column
         }
+        t_comm += MPI_Wtime() - t0;
  
         #undef IDX
 
         /* -------------------------------------- */
 
         /* update grid points */
+        t0 = MPI_Wtime();
         update_plane_border(periodic, N, &planes[current], &planes[!current]);
+        t_comp += MPI_Wtime() - t0;
 
         /* output if needed */
         if ( output_energy_stat_perstep ) // optionally prints diagnostics every step
@@ -188,9 +208,33 @@ int main(int argc, char **argv) {
     t1 = MPI_Wtime() - t1;
 
     {
+        // report both the max (the critical path / what limits speedup) and
+        // the average (what a naive sum/Ntasks would suggest) across ranks;
+        // a wide gap between them signals load imbalance, not just overhead
+        double t_comp_max, t_comp_sum, t_comm_max, t_comm_sum;
+        // MPI_Reduce(sendbuf, recvbuf, count, datatype, op, root, comm);
+        MPI_Reduce(&t_comp, &t_comp_max, 1, MPI_DOUBLE, MPI_MAX, 0, myCOMM_WORLD);
+        MPI_Reduce(&t_comp, &t_comp_sum, 1, MPI_DOUBLE, MPI_SUM, 0, myCOMM_WORLD);
+        MPI_Reduce(&t_comm, &t_comm_max, 1, MPI_DOUBLE, MPI_MAX, 0, myCOMM_WORLD);
+        MPI_Reduce(&t_comm, &t_comm_sum, 1, MPI_DOUBLE, MPI_SUM, 0, myCOMM_WORLD);
+
+        // t_comp_max and t_comm_max can come from *different* ranks, so their
+        // sum can legitimately exceed any single rank's real elapsed time.
+        // Reduce the per-rank TOTAL instead to get a residual that can't go
+        // negative: this is guaranteed to come from one consistent rank.
+        double t_total_local = t_comp + t_comm;
+        double t_total_max;
+        MPI_Reduce(&t_total_local, &t_total_max, 1, MPI_DOUBLE, MPI_MAX, 0, myCOMM_WORLD);
+
         if (Rank == 0)
         {
             printf("Elapsed time:    %f seconds\n", t1);
+            printf("Computation time (max across ranks): %f seconds (avg %f)\n",
+                t_comp_max, t_comp_sum / Ntasks);
+            printf("Communication time (max across ranks): %f seconds (avg %f)\n",
+                t_comm_max, t_comm_sum / Ntasks);
+            printf("Unaccounted (I/O, RNG, imbalance, etc.): %f seconds\n",
+                t1 - t_total_max);
         }
     }
 
@@ -735,11 +779,7 @@ int memory_allocate(const int *neighbours, const vec2_t N, buffers_t *buffers_pt
     // principle you could skip allocating/copying for those two
     // directions and just point the buffer pointers at the right
     // offset inside planes_ptr[...].data instead (see the comment
-    // above). We allocate real buffers for all four directions here
-    // for simplicity and uniformity: it means the halo-exchange code
-    // in main() can pack/send/receive/unpack every direction the same
-    // way, with no special-casing. You can switch north/south over to
-    // the zero-copy version later as an optimization.
+    // above)
     // ··················································
  
     const uint xsize = planes_ptr[OLD].size[_x_];
