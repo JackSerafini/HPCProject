@@ -730,8 +730,7 @@ int memory_allocate(const int *neighbours, const vec2_t N, buffers_t *buffers_pt
     //     uint fysize  = planes_ptr[OLD].size[_y_] + 2;
 
     //     #define TILE 64
-    //     // TODO: #pragma omp parallel for collapse(2) schedule(static)
-    //     // it needs to match the work done in update_plane (add collapse(2) to both)
+    //     // #pragma omp parallel for collapse(2) schedule(static)
     //     for (uint jj = 0; jj < ysize; jj += TILE)
     //         for (uint ii = 0; ii < fxsize; ii += TILE)
     //         {

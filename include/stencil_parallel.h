@@ -67,8 +67,6 @@ extern int get_total_energy(
     double *
 );
 
-// The following functions are declared here, but defined in the .c file
-
 int initialize (
     MPI_Comm *,
     int,
@@ -149,6 +147,10 @@ inline int inject_energy (
     return 0;
 }
 
+#ifndef TILE_SIZE
+#define TILE_SIZE 0
+#endif
+
 inline int update_plane_inside (
     const int periodic, 
     const vec2_t N, // the grid of MPI tasks
@@ -163,15 +165,6 @@ inline int update_plane_inside (
     uint register ysize = oldplane->size[_y_];
     
     #define IDX( i, j ) ( (j)*fxsize + (i) ) // fxsize, not xsize, because the underlying array's row width is the full (haloed) width, even though we only loop over interior cells
-    
-    // HINT: you may attempt to
-    //       (i)  manually unroll the loop
-    //       (ii) ask the compiler to do it
-    // for instance
-    // #pragma GCC unroll 4
-    //
-    // HINT: in any case, this loop is a good candidate
-    //       for openmp parallelization
 
     double *restrict old = oldplane->data;
     double *restrict new = newplane->data;
@@ -179,6 +172,21 @@ inline int update_plane_inside (
     const double alpha = 0.5;
     const double alpha_neighbour = 0.125; // (1/4 * 1/2)
 
+#if TILE_SIZE > 0
+    #pragma omp parallel for collapse(2) schedule(static)
+    for (uint jj = 2; jj < ysize; jj += TILE_SIZE)
+        for (uint ii = 2; ii < xsize; ii += TILE_SIZE)
+        {
+            uint j_end = (jj + TILE_SIZE < ysize) ? jj + TILE_SIZE : ysize;
+            uint i_end = (ii + TILE_SIZE < xsize) ? ii + TILE_SIZE : xsize;
+            for (uint j = jj; j < j_end; j++)
+                for (uint i = ii; i < i_end; i++)
+                {
+                    new[ IDX(i,j) ] = old[ IDX(i,j) ] * alpha + 
+                        ( old[IDX(i-1, j)] + old[IDX(i+1, j)] + old[IDX(i, j-1)] + old[IDX(i, j+1)] ) * alpha_neighbour;
+                }
+        }
+#else
     #pragma omp parallel for collapse(2) schedule(static)
     for (uint j = 2; j < ysize; j++)
         for (uint i = 2; i < xsize; i++)
@@ -186,6 +194,7 @@ inline int update_plane_inside (
             new[ IDX(i,j) ] = old[ IDX(i,j) ] * alpha + 
                 ( old[IDX(i-1, j)] + old[IDX(i+1, j)] + old[IDX(i, j-1)] + old[IDX(i, j+1)] ) * alpha_neighbour;
         }
+#endif
     #undef IDX
  
     return 0;
@@ -242,8 +251,6 @@ inline int update_plane_border(
     {
         if ( N[_x_] == 1 )
         {
-            // propagate the boundaries as needed
-            // check the serial version
             for ( int j = 1; j <= ysize; j++ )
             {
                 new[ IDX(0, j) ] = new[ IDX(xsize, j) ];
@@ -253,8 +260,6 @@ inline int update_plane_border(
 
         if ( N[_y_] == 1 ) 
         {
-            // propagate the boundaries as needed
-            // check the serial version
             for ( int i = 1; i <= xsize; i++ )
             {
                 new[ i ] = new[ IDX(i, ysize) ];
@@ -267,14 +272,7 @@ inline int update_plane_border(
     return 0;
 }
 
-inline int get_total_energy(
-    plane_t *plane,
-    double *energy
-)
-/*
-NOTE: this routine a good candiadate for openmp parallelization
-*/
-{
+inline int get_total_energy(plane_t *plane, double *energy) {
     const int register xsize = plane->size[_x_];
     const int register ysize = plane->size[_y_];
     const int register fsize = xsize+2;
@@ -291,11 +289,6 @@ NOTE: this routine a good candiadate for openmp parallelization
         double totenergy = 0;    
     #endif
 
-    // HINT: you may attempt to
-    //       (i)  manually unroll the loop
-    //       (ii) ask the compiler to do it
-    // for instance
-    // #pragma GCC unroll 4
     #pragma omp parallel for collapse(2) schedule(static) reduction(+:totenergy)
     for ( int j = 1; j <= ysize; j++ )
         for ( int i = 1; i <= xsize; i++ )
