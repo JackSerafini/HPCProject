@@ -60,9 +60,8 @@ int main(int argc, char **argv) {
     }
     
     int current = OLD;
-    // accumulators for this rank's total time spent in compute vs. comm
-    // sections across the whole run; t0 is a scratch variable reused to
-    // bracket each region with MPI_Wtime()
+    // accumulators for this rank's total time spent in compute vs. comm sections across the whole run
+    // t0 is a scratch variable reused to bracket each region with MPI_Wtime()
     double t_comp = 0.0, t_comm = 0.0, t0;
     double t1 = MPI_Wtime(); /* take wall-clock time */
     
@@ -93,11 +92,6 @@ int main(int argc, char **argv) {
         // -> repoint the SEND buffer pointer at the first/last interior row of `data` -> "zero-copy" trick
         buffers[SEND][NORTH] = &data[IDX(1, 1)]; // first interior row (j=1)
         buffers[SEND][SOUTH] = &data[IDX(1, ysize)]; // last interior row  (j=ysize)
-        // for (uint i = 1; i <= xsize; i++)
-        // {
-        //     buffers[SEND][NORTH][i-1] = data[IDX(i, 1)];
-        //     buffers[SEND][SOUTH][i-1] = data[IDX(i, ysize)];
-        // }
 
         // EAST/WEST: a column is strided in memory, so MPI cannot send it directly as a contiguous buffer
         // -> manual packing into the pre-allocated buffers[SEND][EAST/WEST] (sized `ysize` in memory_allocate) 
@@ -121,14 +115,14 @@ int main(int argc, char **argv) {
 
         // [B] perform the halo communications
 
-        // With Isend/Irecv, the call returns immediately after MPI has been told
-        // about the transfer; the actual data movement happens in the background
-        // (network/progress engine) -> start computing the interior of the grid (the cells that do NOT depend on any neighbour's halo)
+        // With Isend/Irecv, the call returns immediately after MPI has been told about the transfer
+        // the actual data movement happens in the background (network/progress engine)
+        // -> start computing the interior of the grid (the cells that do NOT depend on any neighbour's halo)
         // *while* the halo data is still in flight, and only block (MPI_Waitall) right before we need the halo values, 
         // i.e. when updating the border ring of the patch.
-        // MPI_PROC_NULL neighbours (no neighbour in that direction, e.g. on a
-        // non-periodic boundary) make the corresponding Isend/Irecv an
-        // automatic no-op with a request that completes immediately —> issue all 8 calls unconditionally with no per-direction branching
+        // MPI_PROC_NULL neighbours (no neighbour in that direction, e.g. on a non-periodic boundary)
+        // make the corresponding Isend/Irecv an automatic no-op with a request that completes immediately
+        // —> issue all 8 calls unconditionally with no per-direction branching
  
         t0 = MPI_Wtime();
         MPI_Irecv(buffers[RECV][NORTH], xsize, MPI_DOUBLE, neighbours[NORTH], NORTH, myCOMM_WORLD, &reqs[0]);
@@ -163,19 +157,12 @@ int main(int argc, char **argv) {
         MPI_Waitall(8, reqs, MPI_STATUSES_IGNORE);
         t_comm += MPI_Wtime() - t0;
         // We wait for completion of all 8 requests right here
-        // MPI_STATUSES_IGNORE: don't need the MPI_Status info (source rank, tag, error code) for any of these
-        // requests, since we already know exactly what we asked for
         
         // [C] copy the haloes data
         // once received, copy/place the incoming halo data into your plane's border cells
 
         // NORTH/SOUTH: already written directly into the halo rows by MPI_Irecv,
         // thanks to pointing buffers[RECV][NORTH/SOUTH] at IDX(1,0) / IDX(1,ysize+1) above
-        // for (uint i = 1; i <= xsize; i++)
-        // {
-        //     data[IDX(i, 0)] = buffers[RECV][NORTH][i-1];
-        //     data[IDX(i, ysize + 1)] = buffers[RECV][SOUTH][i-1];
-        // }
 
         // EAST/WEST: the received data is sitting in the packed RECV buffers (contiguous, ysize doubles)
         // we must scatter it into the strided halo column of `data` by hand, mirroring the packing loop in [A]
@@ -201,7 +188,6 @@ int main(int argc, char **argv) {
             output_energy_stat(iter, &planes[!current], (iter+1) * Nsources*energy_per_source, Rank, &myCOMM_WORLD, S);
         
         /* swap plane indexes for the new iteration */
-        // swaps which buffer is "current" for the next iteration
         current = !current;
     }
     
@@ -218,10 +204,6 @@ int main(int argc, char **argv) {
         MPI_Reduce(&t_comm, &t_comm_max, 1, MPI_DOUBLE, MPI_MAX, 0, myCOMM_WORLD);
         MPI_Reduce(&t_comm, &t_comm_sum, 1, MPI_DOUBLE, MPI_SUM, 0, myCOMM_WORLD);
 
-        // t_comp_max and t_comm_max can come from *different* ranks, so their
-        // sum can legitimately exceed any single rank's real elapsed time.
-        // Reduce the per-rank TOTAL instead to get a residual that can't go
-        // negative: this is guaranteed to come from one consistent rank.
         double t_total_local = t_comp + t_comm;
         double t_total_max;
         MPI_Reduce(&t_total_local, &t_total_max, 1, MPI_DOUBLE, MPI_MAX, 0, myCOMM_WORLD);
@@ -401,12 +383,7 @@ int initialize(
 
     // ··································································
     /*
-    * find a suitable domain decomposition
-    * very simple algorithm, you may want to
-    * substitute it with a better one
-    *
-    * the plane Sx x Sy will be solved with a grid
-    * of Nx x Ny MPI tasks
+    * the plane Sx x Sy will be solved with a grid of Nx x Ny MPI tasks
     */
 
     vec2_t Grid;
@@ -502,7 +479,6 @@ int initialize(
     /*
     * every MPI task determines the size sx x sy of its own domain
     * REMIND: the computational domain will be embedded into a frame (sx+2) x (sy+2)
-    *         the outern frame will be used for halo communication or
     */
     
     // this distributes the plate size as evenly as possible when it doesn't divide evenly by the grid dimension
@@ -652,6 +628,10 @@ int initialize_sources(
     return 0;
 }
 
+#ifndef TILE_SIZE
+#define TILE_SIZE 0
+#endif
+
 int memory_allocate(const int *neighbours, const vec2_t N, buffers_t *buffers_ptr, plane_t *planes_ptr) {
     /*
     here you allocate the memory buffers that you need to
@@ -684,8 +664,9 @@ int memory_allocate(const int *neighbours, const vec2_t N, buffers_t *buffers_pt
     (*buffers_ptr)[SEND][ {NORTH,...,WEST} ] = .. some memory regions
     (*buffers_ptr)[RECV][ {NORTH,...,WEST} ] = .. some memory regions
     
-    north/south buffers might not even be needed as separate allocations, since a row of the grid is already stored contiguously in memory (because of the row-major flattening)
-    —> you could just point directly at the right offset in the existing array rather than copying. East/west columns, by contrast, are not contiguous (they're strided), so those genuinely need a packed buffer
+    North/south buffers might not even be needed as separate allocations, since a row of the grid is already stored contiguously in memory (because of the row-major flattening)
+    —> you could just point directly at the right offset in the existing array rather than copying
+    East/west columns, by contrast, are not contiguous (they're strided), so those genuinely need a packed buffer
     */
 
     if (planes_ptr == NULL )
@@ -725,26 +706,26 @@ int memory_allocate(const int *neighbours, const vec2_t N, buffers_t *buffers_pt
 
     // NUMA-aware first-touch with tiled pattern matching update_plane_interior's collapse(2) tile distribution
     // Each thread touches the same tiles it will compute, causing Linux to allocate pages on that thread's local NUMA node.
-	// {
-    //     uint fxsize = planes_ptr[OLD].size[_x_] + 2;
-    //     uint fysize  = planes_ptr[OLD].size[_y_] + 2;
+#if TILE_SIZE > 0
+	{
+        uint fxsize = planes_ptr[OLD].size[_x_] + 2;
+        uint fysize  = planes_ptr[OLD].size[_y_] + 2;
 
-    //     #define TILE 64
-    //     // #pragma omp parallel for collapse(2) schedule(static)
-    //     for (uint jj = 0; jj < ysize; jj += TILE)
-    //         for (uint ii = 0; ii < fxsize; ii += TILE)
-    //         {
-    //             uint j_end = (jj + TILE < ysize) ? jj + TILE : ysize;
-    //             uint i_end = (ii + TILE < fxsize) ? ii + TILE : fxsize;
-    //             for (uint j = jj; j < j_end; j++)
-    //                 for (uint i = ii; i < i_end; i++)
-    //                 {
-    //                     planes_ptr[OLD].data[j * fxsize + i] = 0.0;
-    //                     planes_ptr[NEW].data[j * fxsize + i] = 0.0;
-    //                 }
-    //         }
-    //     #undef TILE
-	// }
+        #pragma omp parallel for collapse(2) schedule(static)
+        for (uint jj = 0; jj < fysize; jj += TILE_SIZE)
+            for (uint ii = 0; ii < fxsize; ii += TILE_SIZE)
+            {
+                uint j_end = (jj + TILE_SIZE < fysize) ? jj + TILE_SIZE : fysize;
+                uint i_end = (ii + TILE_SIZE < fxsize) ? ii + TILE_SIZE : fxsize;
+                for (uint j = jj; j < j_end; j++)
+                    for (uint i = ii; i < i_end; i++)
+                    {
+                        planes_ptr[OLD].data[j * fxsize + i] = 0.0;
+                        planes_ptr[NEW].data[j * fxsize + i] = 0.0;
+                    }
+            }
+	}
+#else
     {
         uint fxsize = planes_ptr[OLD].size[_x_] + 2;
         uint fysize  = planes_ptr[OLD].size[_y_] + 2;
@@ -756,6 +737,7 @@ int memory_allocate(const int *neighbours, const vec2_t N, buffers_t *buffers_pt
                 planes_ptr[NEW].data[j * fxsize + i] = 0.0;
             }
     }
+#endif
 
     // ··················································
     // buffers for north and south communication are not really needed
@@ -767,19 +749,6 @@ int memory_allocate(const int *neighbours, const vec2_t N, buffers_t *buffers_pt
     // ··················································
     // allocate buffers
     //
-    // ··················································
-    // we allocate a packed SEND and RECV buffer for every direction
-    // that actually has a neighbour. NORTH/SOUTH buffers hold one
-    // row's worth of data (xsize doubles), EAST/WEST buffers hold one
-    // column's worth of data (ysize doubles), since with a 5-points
-    // stencil only the edge (not the corners) needs to be exchanged.
-    //
-    // NOTE: north/south rows are already contiguous in `data`, so in
-    // principle you could skip allocating/copying for those two
-    // directions and just point the buffer pointers at the right
-    // offset inside planes_ptr[...].data instead (see the comment
-    // above)
-    // ··················································
  
     const uint xsize = planes_ptr[OLD].size[_x_];
     const uint ysize = planes_ptr[OLD].size[_y_];

@@ -111,10 +111,14 @@ inline int inject_energy (
 )
 {
     const uint register sizex = plane->size[_x_]+2; // the patch is stored with a halo/ghost border of 1 extra cell on each side (for neighbor data)
-    // -> the actual allocated width is size_x + 2
     double *restrict data = plane->data;
     
     #define IDX( i, j ) ( (j)*sizex + (i) ) // grid stored as a 1D array simulating 2D, defined locally
+
+    // Hoist loop-invariant periodic checks outside the source loop
+    const int periodic_x = periodic && (N[_x_] == 1);
+    const int periodic_y = periodic && (N[_y_] == 1);
+
     for (int s = 0; s < Nsources; s++) // for each heat source, add energy to that grid cell
     {
         int x = Sources[s][_x_];
@@ -122,25 +126,20 @@ inline int inject_energy (
         
         data[ IDX(x,y) ] += energy;
 
-        // TODO: hoist loop-invariant periodic checks outside the source loop
-        if ( periodic )
+        if ( periodic_x )
         {
-            if ( (N[_x_] == 1)  )
-            {
-                if ( x == 1 )
-                    data[IDX(plane->size[_x_] + 1, y)] += energy;
-                if ( x == plane->size[_x_] ) 
-                    data[IDX(0, y)] += energy;
-            }
-            
-            if ( (N[_y_] == 1) )
-            {
-                if ( y == 1 )
-                    data[IDX(x, plane->size[_y_] + 1)] += energy;
-                if ( y == plane->size[_y_] )
-                    data[IDX(x, 0)] += energy;
-            }
-        }                
+            if ( x == 1 )
+                data[IDX(plane->size[_x_] + 1, y)] += energy;
+            if ( x == plane->size[_x_] ) 
+                data[IDX(0, y)] += energy;
+        }
+        if ( periodic_y )
+        {
+            if ( y == 1 )
+                data[IDX(x, plane->size[_y_] + 1)] += energy;
+            if ( y == plane->size[_y_] )
+                data[IDX(x, 0)] += energy;
+        }        
     }
     #undef IDX
     
@@ -180,11 +179,14 @@ inline int update_plane_inside (
             uint j_end = (jj + TILE_SIZE < ysize) ? jj + TILE_SIZE : ysize;
             uint i_end = (ii + TILE_SIZE < xsize) ? ii + TILE_SIZE : xsize;
             for (uint j = jj; j < j_end; j++)
+            {
+                #pragma omp simd
                 for (uint i = ii; i < i_end; i++)
                 {
                     new[ IDX(i,j) ] = old[ IDX(i,j) ] * alpha + 
                         ( old[IDX(i-1, j)] + old[IDX(i+1, j)] + old[IDX(i, j-1)] + old[IDX(i, j+1)] ) * alpha_neighbour;
                 }
+            }
         }
 #else
     #pragma omp parallel for collapse(2) schedule(static)
