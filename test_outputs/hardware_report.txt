@@ -1,0 +1,106 @@
+======================================================================
+ Running on host: epyc003.hpc.rd.areasciencepark.it
+ Date: Sun Jul  5 07:16:37 PM CEST 2026
+======================================================================
+
+---------------- lscpu (sockets / cores / caches summary) ------------
+Architecture:                         x86_64
+CPU op-mode(s):                       32-bit, 64-bit
+Address sizes:                        43 bits physical, 48 bits virtual
+Byte Order:                           Little Endian
+CPU(s):                               128
+On-line CPU(s) list:                  0-127
+Vendor ID:                            AuthenticAMD
+Model name:                           AMD EPYC 7H12 64-Core Processor
+CPU family:                           23
+Model:                                49
+Thread(s) per core:                   1
+Core(s) per socket:                   64
+Socket(s):                            2
+Stepping:                             0
+BogoMIPS:                             5190.16
+Flags:                                fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 x2apic movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpb cat_l3 cdp_l3 hw_pstate ssbd mba ibrs ibpb stibp vmmcall fsgsbase bmi1 avx2 smep bmi2 cqm rdt_a rdseed adx smap clflushopt clwb sha_ni xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local clzero irperf xsaveerptr rdpru wbnoinvd amd_ppin arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif v_spec_ctrl umip rdpid overflow_recov succor smca sev sev_es
+L1d cache:                            4 MiB (128 instances)
+L1i cache:                            4 MiB (128 instances)
+L2 cache:                             64 MiB (128 instances)
+L3 cache:                             512 MiB (32 instances)
+NUMA node(s):                         8
+NUMA node0 CPU(s):                    0-15
+NUMA node1 CPU(s):                    16-31
+NUMA node2 CPU(s):                    32-47
+NUMA node3 CPU(s):                    48-63
+NUMA node4 CPU(s):                    64-79
+NUMA node5 CPU(s):                    80-95
+NUMA node6 CPU(s):                    96-111
+NUMA node7 CPU(s):                    112-127
+Vulnerability Gather data sampling:   Not affected
+Vulnerability Itlb multihit:          Not affected
+Vulnerability L1tf:                   Not affected
+Vulnerability Mds:                    Not affected
+Vulnerability Meltdown:               Not affected
+Vulnerability Mmio stale data:        Not affected
+Vulnerability Reg file data sampling: Not affected
+Vulnerability Retbleed:               Mitigation; untrained return thunk; SMT disabled
+Vulnerability Spec rstack overflow:   Mitigation; SMT disabled
+Vulnerability Spec store bypass:      Mitigation; Speculative Store Bypass disabled via prctl
+Vulnerability Spectre v1:             Mitigation; usercopy/swapgs barriers and __user pointer sanitization
+Vulnerability Spectre v2:             Mitigation; Retpolines; IBPB conditional; STIBP disabled; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected
+Vulnerability Srbds:                  Not affected
+Vulnerability Tsx async abort:        Not affected
+
+---------------- Per-level cache sizes (ground truth) ----------------
+  index0 : L1 Data  size=32K  line=64B  shared_by_cpus=0
+  index1 : L1 Instruction  size=32K  line=64B  shared_by_cpus=0
+  index2 : L2 Unified  size=512K  line=64B  shared_by_cpus=0
+  index3 : L3 Unified  size=16384K  line=64B  shared_by_cpus=0-3
+
+---------------- NUMA topology -----------------------------------------
+available: 8 nodes (0-7)
+node 0 cpus: 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+node 0 size: 63923 MB
+node 0 free: 61430 MB
+node 1 cpus: 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31
+node 1 size: 64505 MB
+node 1 free: 63737 MB
+node 2 cpus: 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47
+node 2 size: 64505 MB
+node 2 free: 64080 MB
+node 3 cpus: 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63
+node 3 size: 64493 MB
+node 3 free: 37753 MB
+node 4 cpus: 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79
+node 4 size: 64451 MB
+node 4 free: 63422 MB
+node 5 cpus: 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95
+node 5 size: 64505 MB
+node 5 free: 47974 MB
+node 6 cpus: 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111
+node 6 size: 64505 MB
+node 6 free: 62000 MB
+node 7 cpus: 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127
+node 7 size: 64496 MB
+node 7 free: 63822 MB
+node distances:
+node     0    1    2    3    4    5    6    7
+   0:   10   12   12   12   32   32   32   32
+   1:   12   10   12   12   32   32   32   32
+   2:   12   12   10   12   32   32   32   32
+   3:   12   12   12   10   32   32   32   32
+   4:   32   32   32   32   10   12   12   12
+   5:   32   32   32   32   12   10   12   12
+   6:   32   32   32   32   12   12   10   12
+   7:   32   32   32   32   12   12   12   10
+
+---------------- lstopo (if available, gives CCX/CCD grouping) --------
+lstopo/hwloc not available - install with 'module load hwloc' if present
+
+======================================================================
+ Suggested tile sizes derived from the measured L1d size
+======================================================================
+Measured/assumed L1d per core: 32 KiB
+Estimated max square tile side that fits in L1d: T <= 39
+Recommended sweep for the tiling benchmark (includes below/above the L1 estimate,
+plus larger tiles sized to fit L2 instead, to see the L1-vs-L2-vs-no-blocking picture):
+[8, 16, 32, 64, 128, 256]
+
+Done. Use these numbers to pick TILE_SIZE candidates in compile_variants.sh

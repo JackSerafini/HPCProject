@@ -1,0 +1,99 @@
+Running on epyc001.hpc.rd.areasciencepark.it
+#PARAMS suite=tiling variant=notile np=1 omp=1 grid=20000x20000 niter=50 rep=1
+Elapsed time:    36.980035 seconds
+Computation time (max across ranks): 36.882975 seconds (avg 36.882975)
+Communication time (max across ranks): 0.096989 seconds (avg 0.096989)
+Unaccounted (I/O, RNG, imbalance, etc.): 0.000072 seconds
+total injected energy is 200, system energy is 200 ( in avg 5e-07 per grid point)
+#END
+#PARAMS suite=tiling variant=tile8 np=1 omp=1 grid=20000x20000 niter=50 rep=1
+Elapsed time:    81.488330 seconds
+Computation time (max across ranks): 81.375198 seconds (avg 81.375198)
+Communication time (max across ranks): 0.113072 seconds (avg 0.113072)
+Unaccounted (I/O, RNG, imbalance, etc.): 0.000060 seconds
+total injected energy is 200, system energy is 200 ( in avg 5e-07 per grid point)
+#END
+#PARAMS suite=tiling variant=tile16 np=1 omp=1 grid=20000x20000 niter=50 rep=1
+Elapsed time:    106.000388 seconds
+Computation time (max across ranks): 105.914614 seconds (avg 105.914614)
+Communication time (max across ranks): 0.085703 seconds (avg 0.085703)
+Unaccounted (I/O, RNG, imbalance, etc.): 0.000071 seconds
+total injected energy is 200, system energy is 200 ( in avg 5e-07 per grid point)
+#END
+#PARAMS suite=tiling variant=tile32 np=1 omp=1 grid=20000x20000 niter=50 rep=1
+Elapsed time:    112.288459 seconds
+Computation time (max across ranks): 112.191457 seconds (avg 112.191457)
+Communication time (max across ranks): 0.096905 seconds (avg 0.096905)
+Unaccounted (I/O, RNG, imbalance, etc.): 0.000097 seconds
+total injected energy is 200, system energy is 200 ( in avg 5e-07 per grid point)
+#END
+#PARAMS suite=tiling variant=tile64 np=1 omp=1 grid=20000x20000 niter=50 rep=1
+Elapsed time:    85.205908 seconds
+Computation time (max across ranks): 85.093782 seconds (avg 85.093782)
+Communication time (max across ranks): 0.112066 seconds (avg 0.112066)
+Unaccounted (I/O, RNG, imbalance, etc.): 0.000060 seconds
+total injected energy is 200, system energy is 200 ( in avg 5e-07 per grid point)
+#END
+#PARAMS suite=tiling variant=tile128 np=1 omp=1 grid=20000x20000 niter=50 rep=1
+Elapsed time:    79.576033 seconds
+Computation time (max across ranks): 79.470528 seconds (avg 79.470528)
+Communication time (max across ranks): 0.105412 seconds (avg 0.105412)
+Unaccounted (I/O, RNG, imbalance, etc.): 0.000093 seconds
+total injected energy is 200, system energy is 200 ( in avg 5e-07 per grid point)
+#END
+#PARAMS suite=tiling variant=tile256 np=1 omp=1 grid=20000x20000 niter=50 rep=1
+Elapsed time:    75.519524 seconds
+Computation time (max across ranks): 75.423410 seconds (avg 75.423410)
+Communication time (max across ranks): 0.096063 seconds (avg 0.096063)
+Unaccounted (I/O, RNG, imbalance, etc.): 0.000052 seconds
+total injected energy is 200, system energy is 200 ( in avg 5e-07 per grid point)
+#END
+#PARAMS suite=tiling variant=notile np=1 omp=32 grid=20000x20000 niter=50 rep=1
+Elapsed time:    6.627709 seconds
+Computation time (max across ranks): 6.506588 seconds (avg 6.506588)
+Communication time (max across ranks): 0.121065 seconds (avg 0.121065)
+Unaccounted (I/O, RNG, imbalance, etc.): 0.000056 seconds
+total injected energy is 200, system energy is 200 ( in avg 5e-07 per grid point)
+#END
+#PARAMS suite=tiling variant=tile8 np=1 omp=32 grid=20000x20000 niter=50 rep=1
+Elapsed time:    6.935940 seconds
+Computation time (max across ranks): 6.809014 seconds (avg 6.809014)
+Communication time (max across ranks): 0.126858 seconds (avg 0.126858)
+Unaccounted (I/O, RNG, imbalance, etc.): 0.000068 seconds
+total injected energy is 200, system energy is 200 ( in avg 5e-07 per grid point)
+#END
+#PARAMS suite=tiling variant=tile16 np=1 omp=32 grid=20000x20000 niter=50 rep=1
+Elapsed time:    6.981824 seconds
+Computation time (max across ranks): 6.854381 seconds (avg 6.854381)
+Communication time (max across ranks): 0.127373 seconds (avg 0.127373)
+Unaccounted (I/O, RNG, imbalance, etc.): 0.000070 seconds
+total injected energy is 200, system energy is 200 ( in avg 5e-07 per grid point)
+#END
+#PARAMS suite=tiling variant=tile32 np=1 omp=32 grid=20000x20000 niter=50 rep=1
+Elapsed time:    7.532766 seconds
+Computation time (max across ranks): 7.406448 seconds (avg 7.406448)
+Communication time (max across ranks): 0.126256 seconds (avg 0.126256)
+Unaccounted (I/O, RNG, imbalance, etc.): 0.000062 seconds
+total injected energy is 200, system energy is 199.37 ( in avg 4.98426e-07 per grid point)
+#END
+#PARAMS suite=tiling variant=tile64 np=1 omp=32 grid=20000x20000 niter=50 rep=1
+Elapsed time:    6.922794 seconds
+Computation time (max across ranks): 6.797089 seconds (avg 6.797089)
+Communication time (max across ranks): 0.125644 seconds (avg 0.125644)
+Unaccounted (I/O, RNG, imbalance, etc.): 0.000061 seconds
+total injected energy is 200, system energy is 200 ( in avg 5e-07 per grid point)
+#END
+#PARAMS suite=tiling variant=tile128 np=1 omp=32 grid=20000x20000 niter=50 rep=1
+Elapsed time:    6.762478 seconds
+Computation time (max across ranks): 6.634772 seconds (avg 6.634772)
+Communication time (max across ranks): 0.127644 seconds (avg 0.127644)
+Unaccounted (I/O, RNG, imbalance, etc.): 0.000062 seconds
+total injected energy is 200, system energy is 200 ( in avg 5e-07 per grid point)
+#END
+#PARAMS suite=tiling variant=tile256 np=1 omp=32 grid=20000x20000 niter=50 rep=1
+Elapsed time:    6.778317 seconds
+Computation time (max across ranks): 6.659515 seconds (avg 6.659515)
+Communication time (max across ranks): 0.118733 seconds (avg 0.118733)
+Unaccounted (I/O, RNG, imbalance, etc.): 0.000069 seconds
+total injected energy is 200, system energy is 200 ( in avg 5e-07 per grid point)
+#END
