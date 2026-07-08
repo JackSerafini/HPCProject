@@ -110,7 +110,7 @@ inline int inject_energy (
     const vec2_t N // process grid dimensions (Nx, Ny)
 )
 {
-    const uint register sizex = plane->size[_x_]+2; // the patch is stored with a halo/ghost border of 1 extra cell on each side (for neighbor data)
+    const uint register sizex = plane->size[_x_]+2;
     double *restrict data = plane->data;
     
     #define IDX( i, j ) ( (j)*sizex + (i) ) // grid stored as a 1D array simulating 2D, defined locally
@@ -157,7 +157,6 @@ inline int update_plane_inside (
     plane_t *newplane
 )
 {
-    // "full" size including the +2 halo border
     uint register fxsize = oldplane->size[_x_]+2;
     // the actual interior size (no border) —> the loop bounds
     uint register xsize = oldplane->size[_x_];
@@ -283,8 +282,6 @@ inline int get_total_energy(plane_t *plane, double *energy) {
     
     #define IDX( i, j ) ( (j)*fsize + (i) )
 
-    // compile-time conditional -> if compile with -DLONG_ACCURACY, it uses long double (extended precision) for the running sum
-    // otherwise plain double -> summing millions of small values can accumulate floating-point rounding error
     #if defined(LONG_ACCURACY)    
         long double totenergy = 0;
     #else

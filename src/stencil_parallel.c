@@ -30,7 +30,6 @@ int main(int argc, char **argv) {
     {
         int level_obtained;
         
-        // NOTE: change MPI_FUNNELED (= only the main thread will ever call MPI functions) if appropriate
         MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &level_obtained); // declare what level of thread-safety this program needs
         if ( level_obtained < MPI_THREAD_FUNNELED )
         {
@@ -60,8 +59,6 @@ int main(int argc, char **argv) {
     }
     
     int current = OLD;
-    // accumulators for this rank's total time spent in compute vs. comm sections across the whole run
-    // t0 is a scratch variable reused to bracket each region with MPI_Wtime()
     double t_comp = 0.0, t_comm = 0.0, t0;
     double t1 = MPI_Wtime(); /* take wall-clock time */
     
@@ -156,13 +153,12 @@ int main(int argc, char **argv) {
         t0 = MPI_Wtime();
         MPI_Waitall(8, reqs, MPI_STATUSES_IGNORE);
         t_comm += MPI_Wtime() - t0;
-        // We wait for completion of all 8 requests right here
         
         // [C] copy the haloes data
         // once received, copy/place the incoming halo data into your plane's border cells
 
         // NORTH/SOUTH: already written directly into the halo rows by MPI_Irecv,
-        // thanks to pointing buffers[RECV][NORTH/SOUTH] at IDX(1,0) / IDX(1,ysize+1) above
+        // by pointing buffers[RECV][NORTH/SOUTH] at IDX(1,0) / IDX(1,ysize+1) above
 
         // EAST/WEST: the received data is sitting in the packed RECV buffers (contiguous, ysize doubles)
         // we must scatter it into the strided halo column of `data` by hand, mirroring the packing loop in [A]
@@ -303,11 +299,9 @@ int initialize(
     planes[OLD].size[0] = planes[OLD].size[1] = 0;
     planes[NEW].size[0] = planes[NEW].size[1] = 0;
     
-    // initializes all 4 neighbor slots to MPI_PROC_NULL
     for ( int i = 0; i < 4; i++ )
         neighbours[i] = MPI_PROC_NULL;
 
-    // initializes both SEND/RECV buffer sets, all 4 directions, to NULL (not yet allocated)
     for ( int b = 0; b < 2; b++ )
         for ( int d = 0; d < 4; d++ )
             buffers[b][d] = NULL;
@@ -373,13 +367,6 @@ int initialize(
 
     if ( halt )
         return 1;
-    
-    // ··································································
-    /*
-    * here we should check for all the parms being meaningful
-    */
-
-    // ...
 
     // ··································································
     /*
@@ -438,8 +425,7 @@ int initialize(
     // find my neighbours
     //
 
-    if ( Grid[_x_] > 1 ) // more than one column
-    // if there's just 1 column, there's no East/West neighbor at all
+    if ( Grid[_x_] > 1 )
     {  
         if ( *periodic )
         // the grid wraps around — the rightmost column's East neighbor is the leftmost column of the same row, and vice versa
@@ -505,8 +491,7 @@ int initialize(
             fflush(stdout);
         }
 
-        MPI_Barrier(*Comm); // -> serialize output
-        // without this, all processes printing simultaneously would produce garbled terminal output
+        MPI_Barrier(*Comm);
         
         for ( int t = 0; t < Ntasks; t++ )
         {
@@ -528,7 +513,7 @@ int initialize(
     // ··································································
     // allocate the needed memory
     //
-    ret = memory_allocate( neighbours, *N, buffers, planes ); // *N could also be Grid -> look better
+    ret = memory_allocate( neighbours, *N, buffers, planes );
     // ··································································
     // allocate the heat sources
     //
@@ -577,7 +562,6 @@ uint simple_factorization(uint A, int *Nfactors, uint **factors) {
     return 0;
 }
 
-// randomly placing heat sources
 int initialize_sources(
     int Me,
     int Ntasks,
@@ -609,8 +593,7 @@ int initialize_sources(
         nlocal += (tasks_with_sources[i] == Me); // tasks... == Me evaluates to 0 or 1, summed as an int —> counting matches
     *Nsources_local = nlocal;
     
-    // if this process owns at least one source, allocate an array of (x,y) coordinates and randomly pick a position within this process's local patch 
-    // (the 1 + ensures coordinates start at 1, not 0, matching the interior region — recall index 0 is the halo border)
+    // if this process owns at least one source, allocate an array of (x,y) coordinates and randomly pick a position within this process's local patch
     if ( nlocal > 0 )
     {
         vec2_t * restrict helper = (vec2_t*)malloc( nlocal * sizeof(vec2_t) );      
@@ -623,7 +606,7 @@ int initialize_sources(
 
         *Sources = helper;
     }
-    // frees the temporary broadcast array since it's no longer needed.
+    // frees the temporary broadcast array since it's no longer needed
     free( tasks_with_sources );
     return 0;
 }
@@ -655,18 +638,13 @@ int memory_allocate(const int *neighbours, const vec2_t N, buffers_t *buffers_pt
     (ii) --- communications
 
     you may need two buffers (one for sending and one for receiving)
-    for each one of your neighnours, that are at most 4: north, south, east amd west
-    -> up to 4 pairs of SEND/RECV buffers, one pair per neighbor direction, each large enough to hold one edge's worth of data (mysizex or mysizey doubles)
+    for each one of your neighnours, that are at most 4: north, south, east and west
 
     To them you need to communicate at most mysizex or mysizey double data.
 
     These buffers are indexed by the buffer_ptr pointer so that
     (*buffers_ptr)[SEND][ {NORTH,...,WEST} ] = .. some memory regions
     (*buffers_ptr)[RECV][ {NORTH,...,WEST} ] = .. some memory regions
-    
-    North/south buffers might not even be needed as separate allocations, since a row of the grid is already stored contiguously in memory (because of the row-major flattening)
-    —> you could just point directly at the right offset in the existing array rather than copying
-    East/west columns, by contrast, are not contiguous (they're strided), so those genuinely need a packed buffer
     */
 
     if (planes_ptr == NULL )
@@ -685,8 +663,6 @@ int memory_allocate(const int *neighbours, const vec2_t N, buffers_t *buffers_pt
     // allocate memory for data
     // we allocate the space needed for the plane plus a contour frame
     // that will contains data form neighbouring MPI tasks
-    // frame_size = (x+2)*(y+2) — the local patch plus its 1-cell halo border on every side: both OLD and NEW buffers get allocated at this size and zeroed via memset 
-    // -> initial temperature is 0 everywhere, including halos, before any heat is injected
     unsigned int frame_size = (planes_ptr[OLD].size[_x_]+2) * (planes_ptr[OLD].size[_y_]+2);
 
     // 64-byte aligned allocation for cache-line-aligned SIMD loads/stores
@@ -705,7 +681,7 @@ int memory_allocate(const int *neighbours, const vec2_t N, buffers_t *buffers_pt
     }
 
     // NUMA-aware first-touch with tiled pattern matching update_plane_interior's collapse(2) tile distribution
-    // Each thread touches the same tiles it will compute, causing Linux to allocate pages on that thread's local NUMA node.
+    // Each thread touches the same tiles it will compute, causing Linux to allocate pages on that thread's local NUMA node
 #if TILE_SIZE > 0
 	{
         uint fxsize = planes_ptr[OLD].size[_x_] + 2;
@@ -770,7 +746,6 @@ int memory_allocate(const int *neighbours, const vec2_t N, buffers_t *buffers_pt
             buffers_ptr[b][d] = (double*)malloc(buffer_size[d] * sizeof(double));
             if (buffers_ptr[b][d] == NULL)
             {
-                // manage the malloc fail
                 perror("Failed to allocate the receiving buffer.");
                 exit(1);
             }
@@ -797,7 +772,7 @@ int memory_release(buffers_t *buffers, plane_t *planes) {
         }
     }
 
-    if ( planes != NULL ) // free(NULL) is actually safe/a no-op in C anyway
+    if ( planes != NULL )
     {
         if ( planes[OLD].data != NULL )
             free (planes[OLD].data);
@@ -831,7 +806,6 @@ int output_energy_stat (int step, plane_t *plane, double budget, int Me, MPI_Com
             "( in avg %g per grid point)\n",
             budget,
             tot_system_energy,
-            // tot_system_energy / (plane->size[_x_]*plane->size[_y_]) );
             tot_system_energy / (S[_x_]*S[_y_]) );
     }
     
