@@ -5,9 +5,10 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=128
 #SBATCH --mem=0
-#SBATCH --time=00:30:00
+#SBATCH --time=01:00:00
 #SBATCH -A dssc
-#SBATCH --output=omp_scaling_tile48.out
+#SBATCH --exclusive
+#SBATCH --output=omp_scaling_tile64.out
 
 # ------------------------------------------------------------------------
 # Requirement (D), OpenMP leg: 1 MPI task, scale threads from 1 up to
@@ -23,23 +24,23 @@
 
 module load openMPI/4.1.6
 
-mpicc -fopenmp -O3 -march=native -DTILE_SIZE=64 -o stencil_tile48 stencil_parallel.c
+mpicc -fopenmp -O3 -march=native -DTILE_SIZE=64 -o stencil_tile64 stencil_parallel.c
 
-EXEC=./stencil_tile48
-XSIZE=25000
-YSIZE=25000
+EXEC=./stencil_tile64
+XSIZE=25600
+YSIZE=25600
 NITER=100
 NSOURCES=4
 PERIODIC=0
-REPS=2
+REPS=3
 
 export OMP_PLACES=cores
 export OMP_PROC_BIND=close
 
 THREAD_COUNTS="1 2 4 8 16 32 64 96 128"
 
-RAW=omp_scaling_tile48_raw.csv
-OUTFILE=omp_scaling_tile48_results.csv
+RAW=omp_scaling_tile64_raw.csv
+OUTFILE=omp_scaling_tile64_results.csv
 echo "threads,rep,elapsed_s,comp_max_s,comp_avg_s,comm_max_s,comm_avg_s" > ${RAW}
 
 for T in ${THREAD_COUNTS}; do
