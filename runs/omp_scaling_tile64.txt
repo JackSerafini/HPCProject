@@ -1,40 +1,58 @@
 Running with 1 thread(s), rep 1
-  Elapsed: 271.160501s  Comp(max/avg): 270.897091/270.897091s
+  Elapsed: 270.666798s  Comp(max/avg): 270.372600/270.372600s
 Running with 1 thread(s), rep 2
-  Elapsed: 267.913447s  Comp(max/avg): 267.668906/267.668906s
+  Elapsed: 268.568141s  Comp(max/avg): 268.285714/268.285714s
+Running with 1 thread(s), rep 3
+  Elapsed: 268.521921s  Comp(max/avg): 268.239596/268.239596s
 Running with 2 thread(s), rep 1
-  Elapsed: 139.890043s  Comp(max/avg): 139.671085/139.671085s
+  Elapsed: 137.904529s  Comp(max/avg): 137.654894/137.654894s
 Running with 2 thread(s), rep 2
-  Elapsed: 140.228215s  Comp(max/avg): 140.004612/140.004612s
+  Elapsed: 137.993005s  Comp(max/avg): 137.746172/137.746172s
+Running with 2 thread(s), rep 3
+  Elapsed: 137.826708s  Comp(max/avg): 137.584175/137.584175s
 Running with 4 thread(s), rep 1
-  Elapsed: 80.150372s  Comp(max/avg): 79.951856/79.951856s
+  Elapsed: 78.120711s  Comp(max/avg): 77.883285/77.883285s
 Running with 4 thread(s), rep 2
-  Elapsed: 80.048718s  Comp(max/avg): 79.836831/79.836831s
+  Elapsed: 78.091827s  Comp(max/avg): 77.859080/77.859080s
+Running with 4 thread(s), rep 3
+  Elapsed: 78.166098s  Comp(max/avg): 77.936954/77.936954s
 Running with 8 thread(s), rep 1
-  Elapsed: 59.929623s  Comp(max/avg): 59.663365/59.663365s
+  Elapsed: 61.576382s  Comp(max/avg): 61.281625/61.281625s
 Running with 8 thread(s), rep 2
-  Elapsed: 59.898384s  Comp(max/avg): 59.634486/59.634486s
+  Elapsed: 61.607403s  Comp(max/avg): 61.311484/61.311484s
+Running with 8 thread(s), rep 3
+  Elapsed: 61.452550s  Comp(max/avg): 61.158642/61.158642s
 Running with 16 thread(s), rep 1
-  Elapsed: 43.058445s  Comp(max/avg): 42.770078/42.770078s
+  Elapsed: 44.495255s  Comp(max/avg): 44.172406/44.172406s
 Running with 16 thread(s), rep 2
-  Elapsed: 43.067832s  Comp(max/avg): 42.776939/42.776939s
+  Elapsed: 44.356588s  Comp(max/avg): 44.040341/44.040341s
+Running with 16 thread(s), rep 3
+  Elapsed: 44.460880s  Comp(max/avg): 44.146499/44.146499s
 Running with 32 thread(s), rep 1
-  Elapsed: 21.689532s  Comp(max/avg): 21.377724/21.377724s
+  Elapsed: 22.408768s  Comp(max/avg): 22.069740/22.069740s
 Running with 32 thread(s), rep 2
-  Elapsed: 21.658418s  Comp(max/avg): 21.349704/21.349704s
+  Elapsed: 22.408801s  Comp(max/avg): 22.066301/22.066301s
+Running with 32 thread(s), rep 3
+  Elapsed: 22.373560s  Comp(max/avg): 22.039673/22.039673s
 Running with 64 thread(s), rep 1
-  Elapsed: 11.034351s  Comp(max/avg): 10.702770/10.702770s
+  Elapsed: 11.490002s  Comp(max/avg): 11.124900/11.124900s
 Running with 64 thread(s), rep 2
-  Elapsed: 11.064419s  Comp(max/avg): 10.731304/10.731304s
+  Elapsed: 11.447111s  Comp(max/avg): 11.094778/11.094778s
+Running with 64 thread(s), rep 3
+  Elapsed: 11.449188s  Comp(max/avg): 11.095187/11.095187s
 Running with 96 thread(s), rep 1
-  Elapsed: 7.626189s  Comp(max/avg): 7.203766/7.203766s
+  Elapsed: 7.917429s  Comp(max/avg): 7.483035/7.483035s
 Running with 96 thread(s), rep 2
-  Elapsed: 7.626740s  Comp(max/avg): 7.204495/7.204495s
+  Elapsed: 7.910285s  Comp(max/avg): 7.477540/7.477540s
+Running with 96 thread(s), rep 3
+  Elapsed: 7.933635s  Comp(max/avg): 7.498521/7.498521s
 Running with 128 thread(s), rep 1
-  Elapsed: 5.926753s  Comp(max/avg): 5.461840/5.461840s
+  Elapsed: 6.123342s  Comp(max/avg): 5.664925/5.664925s
 Running with 128 thread(s), rep 2
-  Elapsed: 5.916162s  Comp(max/avg): 5.443573/5.443573s
-Wrote omp_scaling_tile_results.csv
+  Elapsed: 6.109967s  Comp(max/avg): 5.653667/5.653667s
+Running with 128 thread(s), rep 3
+  Elapsed: 6.118244s  Comp(max/avg): 5.658754/5.658754s
+Wrote omp_scaling_tile64_results.csv
 
-Per-rep raw data: omp_scaling_tile_raw.csv
-Averaged speedup/efficiency: omp_scaling_tile_results.csv
+Per-rep raw data: omp_scaling_tile64_raw.csv
+Averaged speedup/efficiency: omp_scaling_tile64_results.csv
