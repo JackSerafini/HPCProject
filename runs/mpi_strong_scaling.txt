@@ -1,0 +1,24 @@
+Running with 1 node(s) (8 MPI tasks), rep 1
+  Elapsed: 36.065173s  Comp(max/avg): 34.996983/34.893218s  Comm(max/avg): 1.240416/1.166987s
+Running with 1 node(s) (8 MPI tasks), rep 2
+  Elapsed: 36.155756s  Comp(max/avg): 34.983415/34.909722s  Comm(max/avg): 1.293432/1.241520s
+Running with 1 node(s) (8 MPI tasks), rep 3
+  Elapsed: 35.897814s  Comp(max/avg): 34.950518/34.866300s  Comm(max/avg): 1.137292/1.046662s
+Running with 2 node(s) (16 MPI tasks), rep 1
+  Elapsed: 18.032548s  Comp(max/avg): 17.436644/17.375265s  Comm(max/avg): 0.738749/0.676360s
+Running with 2 node(s) (16 MPI tasks), rep 2
+  Elapsed: 18.094747s  Comp(max/avg): 17.455189/17.396915s  Comm(max/avg): 0.757862/0.705676s
+Running with 2 node(s) (16 MPI tasks), rep 3
+  Elapsed: 18.149255s  Comp(max/avg): 17.558669/17.400027s  Comm(max/avg): 0.844553/0.755600s
+Running with 4 node(s) (32 MPI tasks), rep 1
+  Elapsed: 9.162843s  Comp(max/avg): 8.753007/8.712016s  Comm(max/avg): 0.499450/0.450818s
+Running with 4 node(s) (32 MPI tasks), rep 2
+  Elapsed: 9.125973s  Comp(max/avg): 8.765426/8.711298s  Comm(max/avg): 0.449100/0.407645s
+Running with 4 node(s) (32 MPI tasks), rep 3
+  Elapsed: 9.071618s  Comp(max/avg): 8.758607/8.702161s  Comm(max/avg): 0.415242/0.370592s
+
+Results saved to mpi_strong_scaling_results.csv
+Wrote mpi_strong_scaling_results.csv
+
+Per-rep raw data: mpi_strong_scaling_raw.csv
+Averaged speedup/efficiency: mpi_strong_scaling_results.csv

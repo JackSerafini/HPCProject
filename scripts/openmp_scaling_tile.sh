@@ -13,13 +13,6 @@
 # ------------------------------------------------------------------------
 # Requirement (D), OpenMP leg: 1 MPI task, scale threads from 1 up to
 # filling the whole node.
-#
-# Also worth knowing for interpreting the curve: Orfeo's 2 sockets are
-# further split into 8 NUMA domains of 16 cores each (confirmed via the
-# hardware probe, not the "2 domains" you'd naively assume from 2
-# sockets) - so don't be surprised by small steps in the curve right
-# around 16, 32, 48, 64, 96 threads, where this single rank's threads
-# start spilling into the next NUMA domain.
 # ------------------------------------------------------------------------
 
 module load openMPI/4.1.6
